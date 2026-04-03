@@ -1,2 +1,2 @@
 // config.js
-const appVersion = "1.09 Ayuda";  // Aquí puedes cambiar la versión cuando sea necesario.
+const appVersion = "1.00 DEV";  // Aquí puedes cambiar la versión cuando sea necesario.

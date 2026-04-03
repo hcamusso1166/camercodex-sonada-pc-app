@@ -1,6 +1,6 @@
 {
-    "name": "Camer Codex",
-    "short_name": "CamerCodex",
+    "name": "Camer Codex Develop",
+    "short_name": "CamerCodexDEV",
     "start_url": "/",
     "scope": "/",
     "display": "standalone",
