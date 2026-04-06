@@ -4,117 +4,86 @@
   <meta charset="UTF-8">
   <title>Rutina Soñada - Book Test Imposible</title>
   <link rel="stylesheet" type="text/css" href="../css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    .booktest-subtitle {
-      color: #9da5b1;
-      margin: 0 0 16px;
-      font-size: 0.95rem;
-    }
-
-    .booktest-state-row {
-      display: flex;
-      justify-content: space-between;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-      padding: 8px 0;
-      gap: 12px;
-      color: #d9d9d9;
-    }
-
-.booktest-state-label {
-      color: #9da5b1;
-    }
-
-    .booktest-log {
-      margin-top: 12px;
-      max-height: 180px;
-      overflow-y: auto;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 8px;
-      padding: 10px;
-      background: rgba(0, 0, 0, 0.2);
-      font-size: 0.9rem;
-      color: #d9d9d9;
-    }
-
-    .booktest-log p {
-      margin: 0 0 8px;
-      line-height: 1.25;
-    }
-
-    .booktest-log p:last-child {
-      margin-bottom: 0;
-    }
-
-    .booktest-log-empty {
-      color: #9da5b1;
-      font-style: italic;
-    }
-  </style>
-</head>
+  </head>
 <body>
-<header id="headerRoutine">Camer Codex <sup>&reg;</sup></header>
+<header id="headerRoutine">Camer Codex <sup>&reg;</sup>
+  <div class="menu-icon">
+    <img src="../icons/more_vert_16_D9D9D9.svg" alt="Menú" id="menuToggle">
+    <div id="menuDropdown" class="menu-dropdown hidden">
+      <a href="#" data-popup="ayuda">Ayuda</a>
+      <a href="#" data-popup="acerca">Acerca de</a>
+      <a href="#" data-action="check-updates">Actualizaciones</a>
+      <a href="#" data-popup="estadoBLE">Web Bluetooth</a>
+    </div>
+  </div>
+
+  <div id="popupModal" class="popup-modal hidden">
+    <div class="popup-content">
+      <button id="popupCloseBtn">X</button>
+      <div id="popupBody"></div>
+    </div>
+  </div>
+
+  <div class="status-icons">
+    <img id="estadoConexionBLE" src="../icons/bluetooth_disabled_16_D9D9D9.svg" alt="Conexión BLE" title="Conexión BLE">
+    <img id="estadoBLEIcon" src="../icons/block_16_D9D9D9.svg" alt="Estado BLE" title="Estado BLE">
+    <img id="batteryIcon" src="../icons/battery_unknown_16_D9D9D9.svg" alt="Estado batería" title="Batería desconocida">
+  </div>
+</header>
 
 <div class="rutina">Rutina Soñada</div>
 
 <div class="content">
   <div class="card-grid single-column">
-    <div class="card dark-card">
-      <h2>Rutina Soñada</h2>
-      <p class="booktest-subtitle">Book Test Imposible</p>
-
-      <div class="booktest-state-row">
-      <span class="booktest-state-label">Estado TP</span>
-      <strong id="tpConnectionState">TP no conectado</strong>
-      </div>
-      <div class="booktest-state-row">
-        <span class="booktest-state-label">Libro actual</span>
-        <strong id="bookTitle">Sin libro</strong>
-      </div>
-      <div class="booktest-state-row">
-        <span class="booktest-state-label">Página actual</span>
-        <strong id="bookPage">-</strong>
-      </div>
-      <div class="booktest-state-row">
-        <span class="booktest-state-label">Línea actual</span>
-        <strong id="bookLine">-</strong>
-      </div>
-
-      <div class="button-row" style="margin-top: 16px;">
-        <button id="simulatePayloadButton" class="button-primary" type="button">Simular payload</button>
-        <button id="clearStateButton" class="button-secondary" type="button">Limpiar</button>
-      </div>
-
-      <div class="booktest-log" id="bookTestLog" aria-live="polite">
-        <p class="booktest-log-empty">Sin eventos todavía.</p>
-      </div>
+    <div class="card dark-card" id="routineHeaderCard">
+      <h2>Book Test Imposible</h2>
+      <p class="gray-label">Estado TP: <strong id="tpStatusLabel">TP no conectado</strong></p>
     </div>
-    <div class="card dark-card compacto">
-      <h3>Dispositivo Bluetooth (BLE)</h3>
+
+    <div class="card dark-card" id="payloadCard">
+      <h2>Payload de prueba</h2>
+      <div class="input-group">
+        <label for="payloadBookId">bookId</label>
+        <input id="payloadBookId" type="text" value="narnia-el-sobrino-del-mago" />
+      </div>
+      <div class="input-group">
+        <label for="payloadPage">page</label>
+        <input id="payloadPage" type="number" min="1" step="1" value="9" />
+      </div>
+      <div class="input-group">
+        <label for="payloadLine">line</label>
+        <input id="payloadLine" type="number" min="1" step="1" value="7" />
+      </div>
       <div class="button-row">
-        <button id="connectBleButton" class="button-primary connectButton">
-          <img src="../icons/bluetooth.svg" alt="Bluetooth Icon" id="icon-left">
-          Conectar
-        </button>
-        <button id="disconnectBleButton" class="button-primary disconnectButton">
-          <img src="../icons/bluetooth_disabled.svg" alt="Disconnect Bluetooth Icon" id="icon-left">
-          Desconectar
-        </button>
-        <div class="gray-label">
-          BLE primario (antena 1/9):
-          <strong><span id="bleState" style="color:#d13a30;">Desconectado</span></strong>
-          <small id="blePrimaryRef"></small>
-        </div>
-        <div class="gray-label">
-          BLE multiantena (2 a 6):
-          <strong><span id="bleStateSecondary" style="color:#d13a30;">Desconectado</span></strong>
-          <small id="bleSecondaryRef"></small>
-        </div>
+        <button id="applyPayloadButton" class="button-primary">Aplicar payload</button>
+        <button id="clearPayloadButton" class="button-secondary">Limpiar</button>
       </div>
+      <p class="gray-label" id="payloadStatus">Esperando payload...</p>
+    </div>
+
+  <div class="card dark-card" id="resolvedDataCard">
+      <h2>Datos resueltos</h2>
+      <p><strong>Libro:</strong> <span id="resolvedBookTitle">—</span></p>
+      <p><strong>Autor:</strong> <span id="resolvedBookAuthor">—</span></p>
+      <p><strong>Página:</strong> <span id="resolvedPage">—</span></p>
+      <p><strong>Línea:</strong> <span id="resolvedLine">—</span></p>
+      <p><strong>Texto línea seleccionada:</strong></p>
+      <blockquote id="resolvedLineText">—</blockquote>
+      <h3>Contexto cercano</h3>
+      <ul id="resolvedContextList">
+        <li>—</li>
+      </ul>
+    </div>
+
+    <div class="card dark-card" id="logCard">
+      <h2>Log</h2>
+      <pre id="routineLog" style="white-space: pre-wrap; max-height: 240px; overflow-y: auto; margin: 0;">Sin eventos todavía.</pre>
     </div>
 
     <div class="card dark-card">
-      <button onclick="window.location.href='../index.html'" class="button-secondary" type="button">
+      <button onclick="window.location.href='../index.html'" class="button-secondary">
         <img src="../icons/home_F3B13F.svg" alt="Home" id="icon-left">
         Volver al Menú
       </button>
@@ -123,8 +92,10 @@
 </div>
 
 <footer>v <span id="appVersion"></span></footer>
-<script src="../js/main.js"></script>
+
 <script src="../js/config.js"></script>
+<script src="../js/main.js"></script>
 <script src="../js/rutinas/bookTestImposible.js"></script>
 </body>
+</html>
 </html>

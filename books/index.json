@@ -1,0 +1,14 @@
+{
+  "books": [
+    {
+      "bookId": "narnia-el-sobrino-del-mago",
+      "tag": "01",
+      "title": "El sobrino del mago",
+      "author": "C. S. Lewis",
+      "root": "books/narnia-el-sobrino-del-mago",
+      "collection": "Las crónicas de Narnia",
+      "isbn": "978-950-732-097-2",
+      "language": "es"
+    }
+  ]
+}
