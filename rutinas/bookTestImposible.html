@@ -2,109 +2,93 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Book Test Imposible - Camer Codex</title>
+  <title>Rutina Soñada - Book Test Imposible</title>
   <link rel="stylesheet" type="text/css" href="../css/style.css">
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    .booktest-subtitle {
+      color: #9da5b1;
+      margin: 0 0 16px;
+      font-size: 0.95rem;
+    }
+
+    .booktest-state-row {
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 8px 0;
+      gap: 12px;
+      color: #d9d9d9;
+    }
+
+.booktest-state-label {
+      color: #9da5b1;
+    }
+
+    .booktest-log {
+      margin-top: 12px;
+      max-height: 180px;
+      overflow-y: auto;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      padding: 10px;
+      background: rgba(0, 0, 0, 0.2);
+      font-size: 0.9rem;
+      color: #d9d9d9;
+    }
+
+    .booktest-log p {
+      margin: 0 0 8px;
+      line-height: 1.25;
+    }
+
+    .booktest-log p:last-child {
+      margin-bottom: 0;
+    }
+
+    .booktest-log-empty {
+      color: #9da5b1;
+      font-style: italic;
+    }
+  </style>
 </head>
 <body>
-<header id="headerRoutine">Camer Codex <sup>&reg;</sup>
-  <div class="menu-icon">
-    <img src="../icons/more_vert_16_D9D9D9.svg" alt="Menú" id="menuToggle">
-    <div id="menuDropdown" class="menu-dropdown hidden">
-      <a href="#" data-popup="ayuda">Ayuda</a>
-      <a href="#" data-popup="acerca">Acerca de</a>
-      <a href="#" data-action="check-updates">Actualizaciones</a>
-      <a href="#" data-popup="estadoBLE">Web Bluetooth</a>
-    </div>
-  </div>
+<header id="headerRoutine">Camer Codex <sup>&reg;</sup></header>
 
-  <div id="popupModal" class="popup-modal hidden">
-    <div class="popup-content">
-      <button id="popupCloseBtn">X</button>
-      <div id="popupBody"></div>
-    </div>
-  </div>
-
-  <div class="status-icons">
-    <img id="estadoConexionBLE" src="../icons/bluetooth_disabled_16_D9D9D9.svg" alt="Conexión BLE" title="Conexión BLE">
-    <img id="estadoBLEIcon" src="../icons/block_16_D9D9D9.svg" alt="Estado BLE" title="Estado BLE">
-    <img id="batteryIcon" src="../icons/battery_unknown_16_D9D9D9.svg" alt="Estado batería" title="Batería desconocida">
-  </div>
-</header>
-
-<div class="rutina">Book Test Imposible *</div>
+<div class="rutina">Rutina Soñada</div>
 
 <div class="content">
   <div class="card-grid single-column">
+    <div class="card dark-card">
+      <h2>Rutina Soñada</h2>
+      <p class="booktest-subtitle">Book Test Imposible</p>
 
-    <div class="card dark-card" id="accionMagoCard">
-      <h2>Acción</h2>
-      <p class="gray-label" id="accionMagoMensaje">Conectar el dispositivo BLE</p>
-    </div>
-
-    <div class="card dark-card" id="tituloCard">
-      <h2>Título</h2>
-      <div class="slot-header">
-        <span>Título</span>
-        <time class="slot-time" id="tituloTime"></time>
+      <div class="booktest-state-row">
+      <span class="booktest-state-label">Estado TP</span>
+      <strong id="tpConnectionState">TP no conectado</strong>
       </div>
-      <div class="slot-body">
-        <div class="slot-card" id="tituloValue">—</div>
+      <div class="booktest-state-row">
+        <span class="booktest-state-label">Libro actual</span>
+        <strong id="bookTitle">Sin libro</strong>
       </div>
-    </div>
+      <div class="booktest-state-row">
+        <span class="booktest-state-label">Página actual</span>
+        <strong id="bookPage">-</strong>
+      </div>
+      <div class="booktest-state-row">
+        <span class="booktest-state-label">Línea actual</span>
+        <strong id="bookLine">-</strong>
+      </div>
 
-    <div class="card dark-card" id="slotsCard">
-      <h2>Slots</h2>
-      <div id="slotsContainer" class="slots-container">
-        <div class="slot" data-slot="1">
-          <div class="slot-header">
-            <span>Slot 1</span>
-            <time class="slot-time" id="slotTime1"></time>
-          </div>
-          <div class="slot-body">
-            <div class="slot-card" id="slotCard1">—</div>
-          </div>
-        </div>
-        <div class="slot" data-slot="2">
-          <div class="slot-header">
-            <span>Slot 2</span>
-            <time class="slot-time" id="slotTime2"></time>
-          </div>
-          <div class="slot-body">
-            <div class="slot-card" id="slotCard2">—</div>
-          </div>
-        </div>
-        <div class="slot" data-slot="3">
-          <div class="slot-header">
-            <span>Slot 3</span>
-            <time class="slot-time" id="slotTime3"></time>
-          </div>
-          <div class="slot-body">
-            <div class="slot-card" id="slotCard3">—</div>
-          </div>
-        </div>
-        <div class="slot" data-slot="4">
-          <div class="slot-header">
-            <span>Slot 4</span>
-            <time class="slot-time" id="slotTime4"></time>
-          </div>
-          <div class="slot-body">
-            <div class="slot-card" id="slotCard4">—</div>
-          </div>
-        </div>
-        <div class="slot" data-slot="5">
-          <div class="slot-header">
-            <span>Slot 5</span>
-            <time class="slot-time" id="slotTime5"></time>
-          </div>
-          <div class="slot-body">
-            <div class="slot-card" id="slotCard5">—</div>
-          </div>
-        </div>
+      <div class="button-row" style="margin-top: 16px;">
+        <button id="simulatePayloadButton" class="button-primary" type="button">Simular payload</button>
+        <button id="clearStateButton" class="button-secondary" type="button">Limpiar</button>
+      </div>
+
+      <div class="booktest-log" id="bookTestLog" aria-live="polite">
+        <p class="booktest-log-empty">Sin eventos todavía.</p>
       </div>
     </div>
-
     <div class="card dark-card compacto">
       <h3>Dispositivo Bluetooth (BLE)</h3>
       <div class="button-row">
@@ -130,7 +114,7 @@
     </div>
 
     <div class="card dark-card">
-      <button onclick="window.location.href='../index.html'" class="button-secondary">
+      <button onclick="window.location.href='../index.html'" class="button-secondary" type="button">
         <img src="../icons/home_F3B13F.svg" alt="Home" id="icon-left">
         Volver al Menú
       </button>
@@ -140,9 +124,7 @@
 
 <footer>v <span id="appVersion"></span></footer>
 
-<audio id="tagAudio" src="" preload="auto"></audio>
-<script src="../js/config.js"></script>
-<script src="../js/main.js"></script>
+
 <script src="../js/rutinas/bookTestImposible.js"></script>
 </body>
 </html>
