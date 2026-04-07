@@ -31,38 +31,56 @@
       this.onGattDisconnected = this.onGattDisconnected.bind(this);
     }
 
-    async connect() {
-      if (!navigator.bluetooth) {
-        throw new Error("Web Bluetooth no está disponible en este navegador.");
-      }
 
-      this.log("INFO", `Solicitando dispositivo BLE '${TP_DEVICE_NAME}'.`);
-      this.device = await navigator.bluetooth.requestDevice({
-        filters: [{ name: TP_DEVICE_NAME }],
-        optionalServices: [TP_SERVICE_UUID],
-      });
 
-      this.log("INFO", `Device elegido: ${this.device?.name || "(sin nombre)"}.`);
-      this.device.addEventListener("gattserverdisconnected", this.onGattDisconnected);
+async connect() {
+  if (!navigator.bluetooth) {
+    throw new Error("Web Bluetooth no está disponible en este navegador.");
+  }
 
-      this.server = await this.device.gatt.connect();
-      this.log("INFO", "Conexión GATT establecida.");
+  this.log("INFO", "Initializing Bluetooth...");
 
-      const service = await this.server.getPrimaryService(TP_SERVICE_UUID);
-      this.log("INFO", `Servicio TP encontrado (${TP_SERVICE_UUID}).`);
-
-      this.characteristic = await service.getCharacteristic(TP_EVENT_CHARACTERISTIC_UUID);
-      this.log("INFO", `Characteristic TP encontrada (${TP_EVENT_CHARACTERISTIC_UUID}).`);
-
-      const snapshot = await this.characteristic.readValue();
-      const parsedSnapshot = parseTpBleEventV1(snapshot);
-      this.log("INFO", `Snapshot inicial leído (tpSeq=${parsedSnapshot.tpSeq}, msgType=${parsedSnapshot.msgTypeName}).`);
-      this.handlers.onEvent(parsedSnapshot);
-
-      await this.characteristic.startNotifications();
-      this.characteristic.addEventListener("characteristicvaluechanged", this.onCharacteristicValueChanged);
-      this.log("INFO", "Notificaciones BLE activadas.");
+  try {
+    this.device = await navigator.bluetooth.requestDevice({
+      filters: [{ name: TP_DEVICE_NAME }],
+      optionalServices: [TP_SERVICE_UUID],
+    });
+  } catch (error) {
+    if (error?.name === "NotFoundError") {
+      throw new Error("User cancelled the requestDevice() chooser.");
     }
+    throw error;
+  }
+
+  this.log("INFO", `Device Selected: ${this.device?.name || "(sin nombre)"}`);
+
+  this.device.addEventListener("gattserverdisconnected", this.onGattDisconnected);
+
+  this.server = await this.device.gatt.connect();
+  this.log("INFO", "Connected to GATT Server");
+
+  const service = await this.server.getPrimaryService(TP_SERVICE_UUID);
+  this.log("INFO", `Service discovered: ${service.uuid}`);
+
+  this.characteristic = await service.getCharacteristic(TP_EVENT_CHARACTERISTIC_UUID);
+  this.log("INFO", `Característica TP descubierta: ${this.characteristic.uuid}`);
+
+  const snapshot = await this.characteristic.readValue();
+  const parsedSnapshot = parseTpBleEventV1(snapshot);
+  this.log(
+    "INFO",
+    `Snapshot inicial leído (tpSeq=${parsedSnapshot.tpSeq}, msgType=${parsedSnapshot.msgTypeName}).`
+  );
+  this.handlers.onEvent(parsedSnapshot);
+
+  this.characteristic.addEventListener(
+    "characteristicvaluechanged",
+    this.onCharacteristicValueChanged
+  );
+
+  await this.characteristic.startNotifications();
+  this.log("INFO", "Notificaciones TP iniciadas.");
+}
 
     async disconnect() {
       if (this.characteristic) {
