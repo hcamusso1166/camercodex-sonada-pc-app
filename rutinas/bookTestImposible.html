@@ -6,7 +6,7 @@
   <link rel="stylesheet" type="text/css" href="../css/style.css">
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  </head>
+</head>
 <body>
 <header id="headerRoutine">Camer Codex <sup>&reg;</sup>
   <div class="menu-icon">
@@ -40,38 +40,23 @@
     <div class="card dark-card" id="routineHeaderCard">
       <h2>Book Test Imposible</h2>
       <p class="gray-label">Estado TP: <strong id="tpStatusLabel">TP no conectado</strong></p>
-    </div>
-
-    <div class="card dark-card" id="payloadCard">
-      <h2>Payload de prueba</h2>
-      <div class="input-group">
-        <label for="payloadBookId">bookId</label>
-        <input id="payloadBookId" type="text" value="narnia-el-sobrino-del-mago" />
-      </div>
-      <div class="input-group">
-        <label for="payloadPage">page</label>
-        <input id="payloadPage" type="number" min="1" step="1" value="9" />
-      </div>
-      <div class="input-group">
-        <label for="payloadLine">line</label>
-        <input id="payloadLine" type="number" min="1" step="1" value="7" />
-      </div>
+      <p class="gray-label">Estado audio: <strong id="audioStatusLabel">detenido</strong></p>
       <div class="button-row">
-        <button id="applyPayloadButton" class="button-primary">Aplicar payload</button>
-        <button id="clearPayloadButton" class="button-secondary">Limpiar</button>
+        <button id="startShowButton" class="button-primary">Iniciar show / conectar TP</button>
+        <button id="replayAudioButton" class="button-secondary">Replay</button>
+        <button id="stopAudioButton" class="button-secondary">Stop</button>
       </div>
-      <p class="gray-label" id="payloadStatus">Esperando payload...</p>
+      <p class="gray-label" id="payloadStatus">Esperando inicio de show.</p>
     </div>
 
-  <div class="card dark-card" id="resolvedDataCard">
+    <div class="card dark-card" id="resolvedDataCard">
       <h2>Datos resueltos</h2>
       <p><strong>Libro:</strong> <span id="resolvedBookTitle">—</span></p>
       <p><strong>Autor:</strong> <span id="resolvedBookAuthor">—</span></p>
+      <p><strong>Código TP:</strong> <span id="resolvedBookCode">—</span></p>
       <p><strong>Página:</strong> <span id="resolvedPage">—</span></p>
-      <p><strong>Línea:</strong> <span id="resolvedLine">—</span></p>
-      <p><strong>Texto línea seleccionada:</strong></p>
-      <blockquote id="resolvedLineText">—</blockquote>
-      <h3>Contexto cercano</h3>
+      <p><strong>Renglón:</strong> <span id="resolvedLine">—</span></p>
+      <h3>Vista de líneas</h3>
       <ul id="resolvedContextList">
         <li>—</li>
       </ul>
@@ -95,6 +80,8 @@
 
 <script src="../js/config.js"></script>
 <script src="../js/main.js"></script>
+<script src="../js/rutinas/bookTestImposibleTpAdapter.js"></script>
+<script src="../js/rutinas/bookTestImposibleShowAudio.js"></script>
 <script src="../js/rutinas/bookTestImposible.js"></script>
 </body>
 </html>

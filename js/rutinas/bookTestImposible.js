@@ -3,176 +3,385 @@ const BOOK_DATA = {
   indexPath: "../books/index.json",
 };
 
+
+const AUDIO_DATA = {
+  baseNumbersPath: "../audios/suma",
+};
 const routineState = {
-  payload: null,
-  resolved: null,
-  error: null,
+  books: [],
+  currentBook: null,
+  currentSelection: null,
+  lastTpSeq: -1,
   logs: [],
+  tpConnected: false,
 };
 
 const ui = {
-  payloadBookId: null,
-  payloadPage: null,
-  payloadLine: null,
-  applyButton: null,
-  clearButton: null,
+  startShowButton: null,
+  replayAudioButton: null,
+  stopAudioButton: null,
+  tpStatusLabel: null,
+  audioStatusLabel: null,
   payloadStatus: null,
   resolvedBookTitle: null,
   resolvedBookAuthor: null,
+  resolvedBookCode: null,
   resolvedPage: null,
   resolvedLine: null,
-  resolvedLineText: null,
   resolvedContextList: null,
   routineLog: null,
 };
 
+let tpAdapter;
+let showAudio;
+
 if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initBookTestImposibleRoutine);
+  document.addEventListener("DOMContentLoaded", initBookTestImposibleRoutine);
 } else {
-    initBookTestImposibleRoutine();
+  initBookTestImposibleRoutine();
 }
 
-function initBookTestImposibleRoutine() {
+async function initBookTestImposibleRoutine() {
   bindUiElements();
   bindEvents();
+  setupAudioAndBle();
   resetRoutineState();
-  logInfo("Rutina inicializada en modo simulación manual (sin BLE TP).", "INIT");
+  await preloadBooks();
+  logInfo("Rutina inicializada en modo show-time (esperando conexión TP).", "INIT");
 }
 
 function bindUiElements() {
-  ui.payloadBookId = document.getElementById("payloadBookId");
-  ui.payloadPage = document.getElementById("payloadPage");
-  ui.payloadLine = document.getElementById("payloadLine");
-  ui.applyButton = document.getElementById("applyPayloadButton");
-  ui.clearButton = document.getElementById("clearPayloadButton");
+  ui.startShowButton = document.getElementById("startShowButton");
+  ui.replayAudioButton = document.getElementById("replayAudioButton");
+  ui.stopAudioButton = document.getElementById("stopAudioButton");
+  ui.tpStatusLabel = document.getElementById("tpStatusLabel");
+  ui.audioStatusLabel = document.getElementById("audioStatusLabel");
   ui.payloadStatus = document.getElementById("payloadStatus");
 
   ui.resolvedBookTitle = document.getElementById("resolvedBookTitle");
   ui.resolvedBookAuthor = document.getElementById("resolvedBookAuthor");
+  ui.resolvedBookCode = document.getElementById("resolvedBookCode");
   ui.resolvedPage = document.getElementById("resolvedPage");
   ui.resolvedLine = document.getElementById("resolvedLine");
-  ui.resolvedLineText = document.getElementById("resolvedLineText");
   ui.resolvedContextList = document.getElementById("resolvedContextList");
 
   ui.routineLog = document.getElementById("routineLog");
 }
 
 function bindEvents() {
-  if (ui.applyButton) {
-    ui.applyButton.addEventListener("click", onApplyPayloadClick);
-  }
+ui.startShowButton?.addEventListener("click", onStartShowClick);
+  ui.replayAudioButton?.addEventListener("click", () => showAudio?.replay());
+  ui.stopAudioButton?.addEventListener("click", () => showAudio?.stop("Audio detenido por operador."));
+}
 
-  if (ui.clearButton) {
-    ui.clearButton.addEventListener("click", () => {
-      resetRoutineState();
-      logInfo("Estado limpiado manualmente.", "UI");
-    });
+function setupAudioAndBle() {
+  showAudio = new window.BookTestImposibleShowAudio({
+    onLog: appendLog,
+    onStatus: renderAudioStatus,
+  });
+
+  tpAdapter = new window.BookTestImposibleTpAdapter({
+    onLog: appendLog,
+    onEvent: onTpEvent,
+    onDisconnected: onTpDisconnected,
+  });
+}
+
+async function preloadBooks() {
+  try {
+    const booksIndex = await loadJson(BOOK_DATA.indexPath, "No se pudo cargar books/index.json");
+    const books = normalizeBooksIndex(booksIndex).map(normalizeBookMetadata);
+    routineState.books = books;
+    logInfo(`Index cargado con ${books.length} libro(s).`, "DATA");
+  } catch (error) {
+    logError(error.message, "DATA");
+    updatePayloadStatus(error.message, true);
+  }
+}
+
+async function onStartShowClick() {
+  try {
+    showAudio.enableFromUserGesture();
+    updatePayloadStatus("Conectando al TP...", false);
+    await tpAdapter.connect();
+    routineState.tpConnected = true;
+    renderTpStatus("TP conectado");
+    updatePayloadStatus("Sesión show-time activa. Esperando eventos TP.", false);
+  } catch (error) {
+    logError(`No se pudo iniciar show: ${error.message}`, "BLE");
+    renderTpStatus("TP no conectado");
+    updatePayloadStatus(error.message, true);
   }
 }
   
-function readPayloadFromInputs() {
-  const payload = {
-    bookId: (ui.payloadBookId?.value || "").trim(),
-    page: Number.parseInt(ui.payloadPage?.value, 10),
-    line: Number.parseInt(ui.payloadLine?.value, 10),
-  };
-
-  if (!payload.bookId) {
-    throw new Error("bookId es obligatorio.");
-  }
-
-    if (!Number.isInteger(payload.page) || payload.page <= 0) {
-    throw new Error("page debe ser un entero mayor que 0.");
-  }
-
-    if (!Number.isInteger(payload.line) || payload.line <= 0) {
-    throw new Error("line debe ser un entero mayor que 0.");
-  }
-
-    return payload;
+function onTpDisconnected() {
+  routineState.tpConnected = false;
+  renderTpStatus("TP desconectado");
+  updatePayloadStatus("Conexión BLE cerrada.", true);
 }
 
-async function onApplyPayloadClick() {
+async function onTpEvent(event) {
+  if (event.tpSeq <= routineState.lastTpSeq) {
+    logInfo(`Evento ignorado por tpSeq viejo (tpSeq=${event.tpSeq}, last=${routineState.lastTpSeq}).`, "EVENT");
+    return;
+  }
+
+  routineState.lastTpSeq = event.tpSeq;
+  logInfo(`Procesando ${event.msgTypeName} con tpSeq=${event.tpSeq}.`, "EVENT");
+
+  if (event.msgTypeName === "BOOK") {
+    handleBookEvent(event);
+    return;
+  }
+
+  if (event.msgTypeName === "SELECTION") {
+    await handleSelectionEvent(event);
+    return;
+  }
+
+  if (event.msgTypeName === "CLEARED") {
+    handleClearedEvent(event);
+    return;
+  }
+
+  if (event.msgTypeName === "SNAPSHOT") {
+    await handleSnapshotEvent(event);
+    return;
+  }
+
+  logInfo(`msgType no manejado: ${event.msgTypeName}.`, "EVENT");
+}
+
+function handleBookEvent(event) {
+  const resolvedBook = resolveBookByTpCode(event.bookCode);
+  routineState.currentBook = resolvedBook;
+  routineState.currentSelection = null;
+  showAudio.stop("Audio cancelado por nuevo evento BOOK.");
+  showAudio.setQueue([], { label: "BOOK_RESET" });
+
+  clearSelectionView();
+
+  if (!resolvedBook) {
+    const errorMessage = `No se pudo mapear bookCode '${event.bookCode}'.`;
+    updatePayloadStatus(errorMessage, true);
+    renderBookInfo(null, event.bookCode);
+    logError(errorMessage, "MAP");
+    return;
+  }
+
+  renderBookInfo(resolvedBook, event.bookCode);
+  updatePayloadStatus(`Libro resuelto: ${resolvedBook.title}.`, false);
+  logInfo(`Libro resuelto para code '${event.bookCode}': ${resolvedBook.bookId}.`, "MAP");
+}
+
+async function handleSelectionEvent(event) {
+  showAudio.stop("Audio cancelado por nuevo evento SELECTION.");
+
+  if (!routineState.currentBook) {
+    const errorMessage = "Llegó SELECTION pero no hay libro actual resuelto.";
+    updatePayloadStatus(errorMessage, true);
+    logError(errorMessage, "DATA");
+    return;
+  }
+
   try {
-    const payload = readPayloadFromInputs();
-    routineState.payload = payload;
-    routineState.error = null;
-    updatePayloadStatus(`Aplicando payload: ${JSON.stringify(payload)}`, false);
-    logInfo(`Payload aplicado: ${JSON.stringify(payload)}`, "EVENT");
+    const selection = await resolveSelection(routineState.currentBook, event.page, event.line);
+    routineState.currentSelection = selection;
+    renderSelection(selection);
+    updatePayloadStatus(`Selección resuelta: pág ${selection.pageNumber}, línea ${selection.lineNumber}.`, false);
+    logInfo(`Selección resuelta para ${selection.book.bookId}.`, "DATA");
 
-    const resolved = await resolvePayload(payload);
-    routineState.resolved = resolved;
-    routineState.error = null;
-
-    renderResolvedData();
-    updatePayloadStatus("Payload resuelto correctamente.", false);
-    logInfo(
-      `Línea resuelta con éxito (${resolved.book.title} | pág ${resolved.pageNumber} | línea ${resolved.lineNumber}).`,
-      "DATA"
-    );
+    const queueResult = await buildShowAudioQueue(selection);
+    showAudio.setQueue(queueResult.queue, { label: `tpSeq ${event.tpSeq}` });
+    queueResult.warnings.forEach(warning => logInfo(warning, "AUDIO"));
+    if (queueResult.queue.length) {
+      await showAudio.playQueue();
+    }
   } catch (error) {
-    routineState.resolved = null;
-    routineState.error = error;
-
-    renderResolvedData();
     updatePayloadStatus(error.message, true);
-    logError(error.message);
+    logError(error.message, "DATA");
+    clearSelectionView();
   }
 }
 
-async function resolvePayload(payload) {
-  const booksIndex = await loadJson(BOOK_DATA.indexPath, "No se pudo cargar books/index.json");
-  const books = normalizeBooksIndex(booksIndex);
+async function handleSnapshotEvent(event) {
+  logInfo("SNAPSHOT recibido; sincronizando estado parcial disponible.", "EVENT");
 
-    const book = books.find(item => getBookId(item) === payload.bookId);
-  if (!book) {
-    throw new Error(`No se encontró bookId '${payload.bookId}' en books/index.json.`);
+  if (event.stateBits.bookValid && event.bookCode && event.bookCode !== "----") {
+    handleBookEvent(event);
   }
 
-  const normalizedBook = normalizeBookMetadata(book);
-  logInfo(`Libro encontrado: ${normalizedBook.title} (${normalizedBook.author}).`, "DATA");
+  if (event.stateBits.selectionValid && event.page > 0 && event.line > 0) {
+    await handleSelectionEvent(event);
+  }
+}
 
-  const bookInfoPath = buildBookInfoPath(normalizedBook);
-  try {
-    await loadJson(bookInfoPath, "No se pudo cargar el book.json del libro");
-  } catch (error) {
-    logInfo(`book.json no disponible o inválido en ${bookInfoPath}. Se continúa con index.json.`, "WARN");
+function handleClearedEvent(event) {
+  showAudio.stop("Audio cancelado por evento CLEARED.");
+  routineState.currentSelection = null;
+  clearSelectionView();
+  updatePayloadStatus(`Selección limpiada por TP (tpSeq=${event.tpSeq}).`, false);
+  logInfo("Selección visual limpia tras CLEARED.", "EVENT");
+}
+
+async function resolveSelection(book, page, line) {
+  if (!Number.isInteger(page) || page <= 0) {
+    throw new Error(`Página inválida recibida: ${page}.`);
+  }
+  if (!Number.isInteger(line) || line <= 0) {
+    throw new Error(`Renglón inválido recibido: ${line}.`);
   }
 
-  const pagePath = buildPagePath(normalizedBook, payload.page);
+  const pagePath = buildPagePath(book, page);
   logInfo(`Resolviendo página desde: ${pagePath}`, "DATA");
+  const pageData = await loadJson(pagePath, `No se pudo cargar la página ${page}`);
 
-  const pageData = await loadJson(pagePath, `No se pudo cargar la página ${payload.page}.`);
   const lines = extractLines(pageData);
-
   if (!lines.length) {
-    throw new Error(`La página ${payload.page} no contiene líneas utilizables.`);
+    throw new Error(`La página ${page} no contiene líneas utilizables.`);
   }
 
-  const lineIndex = payload.line - 1;
+  const lineIndex = line - 1;
   if (lineIndex < 0 || lineIndex >= lines.length) {
-    throw new Error(
-      `Línea fuera de rango. Página ${payload.page} tiene ${lines.length} líneas y se pidió línea ${payload.line}.`
-    );
+    throw new Error(`Renglón fuera de rango. La página ${page} tiene ${lines.length} líneas.`);
   }
-
-  const selectedLine = lines[lineIndex];
-  const context = buildContextLines(lines, lineIndex);
 
   return {
-    payload,
-    book: normalizedBook,
-    pageNumber: payload.page,
-    lineNumber: payload.line,
-    selectedLine,
-    context,
+    book,
+    pageNumber: page,
+    lineNumber: line,
+    selectedLine: lines[lineIndex],
+    previewLines: buildPreviewLines(lines, lineIndex),
   };
+}
+
+function buildPreviewLines(lines, selectedIndex) {
+  const preview = [];
+  for (let offset = 0; offset < 4; offset += 1) {
+    const idx = selectedIndex + offset;
+    if (idx >= lines.length) {
+      break;
+    }
+    preview.push({
+      lineNumber: idx + 1,
+      text: lines[idx],
+      isSelected: offset === 0,
+      offset,
+    });
+  }
+  return preview;
+}
+
+async function buildShowAudioQueue(selection) {
+  const queue = [];
+  const warnings = [];
+
+  const bookAudioCandidates = [
+    `${normalizeRootPath(selection.book.root)}/audio/title.mp3`,
+    `${normalizeRootPath(selection.book.root)}/title.mp3`,
+    `${normalizeRootPath(selection.book.root)}/audio/author.mp3`,
+    `${normalizeRootPath(selection.book.root)}/author.mp3`,
+  ];
+
+  for (const src of bookAudioCandidates) {
+    if (await assetExists(src)) {
+      queue.push({ src, label: `book:${src}` });
+    } else {
+      warnings.push(`Asset faltante: ${src}`);
+    }
+  }
+
+  const pageNumberAudio = await buildNumberAudio(selection.pageNumber);
+  if (!pageNumberAudio.length) {
+    warnings.push(`No se encontró audio numérico para página ${selection.pageNumber}.`);
+  }
+  queue.push(...pageNumberAudio.map(src => ({ src, label: `page:${selection.pageNumber}` })));
+
+  const lineNumberAudio = await buildNumberAudio(selection.lineNumber);
+  if (!lineNumberAudio.length) {
+    warnings.push(`No se encontró audio numérico para renglón ${selection.lineNumber}.`);
+  }
+  queue.push(...lineNumberAudio.map(src => ({ src, label: `line:${selection.lineNumber}` })));
+
+  const firstLineTakes = await findLineTakeAudios(selection);
+  if (!firstLineTakes.length) {
+    warnings.push("No se encontraron takes locales para la línea seleccionada.");
+  }
+  queue.push(...firstLineTakes.map(src => ({ src, label: `take:${src}` })));
+
+  return { queue, warnings };
+}
+
+async function findLineTakeAudios(selection) {
+  const pageSlug = String(selection.pageNumber).padStart(3, "0");
+  const lineSlug = String(selection.lineNumber).padStart(2, "0");
+  const root = normalizeRootPath(selection.book.root);
+
+  const candidates = [
+    `${root}/audio/pages/page-${pageSlug}/line-${lineSlug}-take1.mp3`,
+    `${root}/audio/pages/page-${pageSlug}/line-${lineSlug}-take2.mp3`,
+    `${root}/audio/pages/page-${pageSlug}/line-${lineSlug}-take3.mp3`,
+    `${root}/audio/page-${pageSlug}/line-${lineSlug}-take1.mp3`,
+    `${root}/audio/page-${pageSlug}/line-${lineSlug}-take2.mp3`,
+    `${root}/audio/page-${pageSlug}/line-${lineSlug}-take3.mp3`,
+  ];
+
+  const found = [];
+  for (const src of candidates) {
+    if (await assetExists(src)) {
+      found.push(src);
+    }
+  }
+  return found;
+}
+
+async function buildNumberAudio(number) {
+  const directPath = `${AUDIO_DATA.baseNumbersPath}/${number}.mp3`;
+  if (await assetExists(directPath)) {
+    return [directPath];
+  }
+  return [];
+}
+
+function resolveBookByTpCode(bookCodeRaw) {
+  const code = String(bookCodeRaw || "").trim().toUpperCase();
+  if (!code || code === "----") {
+    return null;
+  }
+
+  const tagPrefix = code.slice(0, 2);
+
+  const exact = routineState.books.find(book => {
+    const candidates = [book.tag, book.bookId, book.id, book.slug, book.tpCode]
+      .filter(Boolean)
+      .map(value => String(value).trim().toUpperCase());
+    return candidates.includes(code);
+  });
+  if (exact) {
+    return exact;
+  }
+
+  const byTagPrefix = routineState.books.find(book => {
+    const tag = String(book.tag || "").trim().toUpperCase();
+    return Boolean(tag) && tagPrefix === tag;
+  });
+
+  return byTagPrefix || null;
+}
+
+async function assetExists(path) {
+  try {
+    const response = await fetch(path, { cache: "no-store" });
+    return response.ok;
+  } catch (error) {
+    return false;
+  }
 }
 
 async function loadJson(path, errorPrefix) {
   let response;
 
-    try {
+  try {
     response = await fetch(path, { cache: "no-store" });
   } catch (error) {
     throw new Error(`${errorPrefix}: error de red/carga local (${path}).`);
@@ -182,7 +391,7 @@ async function loadJson(path, errorPrefix) {
     throw new Error(`${errorPrefix}: HTTP ${response.status} (${path}).`);
   }
 
-    try {
+  try {
     return await response.json();
   } catch (error) {
     throw new Error(`${errorPrefix}: JSON mal formado (${path}).`);
@@ -203,7 +412,6 @@ function normalizeBooksIndex(indexData) {
 
 function normalizeBookMetadata(rawBook) {
   const bookId = getBookId(rawBook);
-
   return {
     ...rawBook,
     bookId,
@@ -226,15 +434,11 @@ function normalizeRootPath(rootPath) {
     return rootPath;
   }
 
-    if (rootPath.startsWith("books/")) {
+  if (rootPath.startsWith("books/")) {
     return `../${rootPath}`;
   }
 
-    return `${BOOK_DATA.basePath}/${rootPath.replace(/^\/+/, "")}`;
-}
-
-function buildBookInfoPath(book) {
-  return `${normalizeRootPath(book.root)}/book.json`;
+  return `${BOOK_DATA.basePath}/${rootPath.replace(/^\/+/, "")}`;
 }
 
 function buildPagePath(book, page) {
@@ -268,78 +472,67 @@ function extractLines(pageData) {
     .filter(Boolean);
 }
 
-function buildContextLines(lines, selectedIndex) {
-  const start = Math.max(0, selectedIndex - 1);
-  const end = Math.min(lines.length - 1, selectedIndex + 1);
-  const context = [];
-
-  for (let i = start; i <= end; i += 1) {
-    context.push({
-      lineNumber: i + 1,
-      text: lines[i],
-      isSelected: i === selectedIndex,
-    });
-  }
-
-    return context;
-}
-
 function resetRoutineState() {
-  routineState.payload = null;
-  routineState.resolved = null;
-  routineState.error = null;
+  routineState.currentBook = null;
+  routineState.currentSelection = null;
+  routineState.lastTpSeq = -1;
   routineState.logs = [];
+  routineState.tpConnected = false;
 
-  updatePayloadStatus("Esperando payload...", false);
-  clearResolvedData();
+  updatePayloadStatus("Esperando inicio de show.", false);
+  renderTpStatus("TP no conectado");
+  renderAudioStatus("detenido", "");
+  renderBookInfo(null, "—");
+  clearSelectionView();
   renderLog();
 }
 
-function clearResolvedData() {
-  if (ui.resolvedBookTitle) ui.resolvedBookTitle.textContent = "—";
-  if (ui.resolvedBookAuthor) ui.resolvedBookAuthor.textContent = "—";
-  if (ui.resolvedPage) ui.resolvedPage.textContent = "—";
-  if (ui.resolvedLine) ui.resolvedLine.textContent = "—";
-  if (ui.resolvedLineText) ui.resolvedLineText.textContent = "—";
-
-  if (ui.resolvedContextList) {
-    ui.resolvedContextList.innerHTML = "<li>—</li>";
+function renderTpStatus(label) {
+  if (ui.tpStatusLabel) {
+    ui.tpStatusLabel.textContent = label;
   }
 }
 
-function renderResolvedData() {
-  if (!routineState.resolved) {
-    clearResolvedData();
+function renderAudioStatus(status, detail = "") {
+  if (!ui.audioStatusLabel) {
     return;
   }
+  ui.audioStatusLabel.textContent = detail ? `${status} (${detail})` : status;
+}
 
-  const { book, pageNumber, lineNumber, selectedLine, context } = routineState.resolved;
+function renderBookInfo(book, code = "—") {
+  ui.resolvedBookTitle.textContent = book?.title || "—";
+  ui.resolvedBookAuthor.textContent = book?.author || "—";
+  ui.resolvedBookCode.textContent = code || "—";
+}
 
-  if (ui.resolvedBookTitle) ui.resolvedBookTitle.textContent = book.title;
-  if (ui.resolvedBookAuthor) ui.resolvedBookAuthor.textContent = book.author;
-  if (ui.resolvedPage) ui.resolvedPage.textContent = String(pageNumber);
-  if (ui.resolvedLine) ui.resolvedLine.textContent = String(lineNumber);
-  if (ui.resolvedLineText) ui.resolvedLineText.textContent = selectedLine;
+function clearSelectionView() {
+    ui.resolvedPage.textContent = "—";
+  ui.resolvedLine.textContent = "—";
+  ui.resolvedContextList.innerHTML = "<li>—</li>";
+}
 
-  if (ui.resolvedContextList) {
-    ui.resolvedContextList.innerHTML = "";
-    context.forEach(item => {
-      const li = document.createElement("li");
-      li.textContent = `${item.lineNumber}. ${item.text}`;
-      if (item.isSelected) {
-        li.style.fontWeight = "700";
-      }
-      ui.resolvedContextList.appendChild(li);
-    });
-  }
+function renderSelection(selection) {
+  ui.resolvedPage.textContent = String(selection.pageNumber);
+  ui.resolvedLine.textContent = String(selection.lineNumber);
+  ui.resolvedContextList.innerHTML = "";
+
+  selection.previewLines.forEach(item => {
+    const li = document.createElement("li");
+    const prefix = item.offset === 0 ? "Elegida" : `Siguiente ${item.offset}`;
+    li.textContent = `${prefix} (L${item.lineNumber}): ${item.text}`;
+    if (item.isSelected) {
+      li.style.fontWeight = "700";
+    }
+    ui.resolvedContextList.appendChild(li);
+  });
 }
 
 function updatePayloadStatus(message, isError) {
   if (!ui.payloadStatus) {
     return;
   }
-
-    ui.payloadStatus.textContent = message;
+  ui.payloadStatus.textContent = message;
   ui.payloadStatus.style.color = isError ? "#f56c6c" : "#b8bcc6";
 }
 
@@ -357,9 +550,9 @@ function appendLog(level, source, message) {
     minute: "2-digit",
     second: "2-digit",
     hour12: false,
-  })
+  });
 
-    routineState.logs.push(`[${timestamp}] [${level}] [${source}] ${message}`);
+  routineState.logs.push(`[${timestamp}] [${level}] [${source}] ${message}`);
   renderLog();
 }
 
@@ -367,7 +560,12 @@ function renderLog() {
   if (!ui.routineLog) {
     return;
   }
-  window.bookTestImposibleDev = {
-  resolvePayload,
+  ui.routineLog.textContent = routineState.logs.length ? routineState.logs.join("\n") : "Sin eventos todavía.";
+  ui.routineLog.scrollTop = ui.routineLog.scrollHeight;
+}
+
+window.bookTestImposibleDev = {
   buildPagePath,
-  }};
+  buildPreviewLines,
+  resolveBookByTpCode,
+};
