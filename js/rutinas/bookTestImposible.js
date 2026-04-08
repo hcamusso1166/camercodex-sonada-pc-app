@@ -273,22 +273,25 @@ function buildPreviewLines(lines, selectedIndex) {
 }
 
 async function buildShowAudioQueue(selection) {
-  const queue = [];
   const warnings = [];
+  const bookId = selection.book.id;
 
-  const bookAudioCandidates = [
-    `${normalizeRootPath(selection.book.root)}/audio/title.mp3`,
-    `${normalizeRootPath(selection.book.root)}/title.mp3`,
-    `${normalizeRootPath(selection.book.root)}/audio/author.mp3`,
-    `${normalizeRootPath(selection.book.root)}/author.mp3`,
-  ];
+  const takes = await resolveLocalLineTakes(bookId, selection.pageNumber, selection.lineNumber, assetExists);
+  if (!takes.length) {
+    warnings.push("No se encontraron takes locales para la línea seleccionada.");
+    return { queue: [], warnings };
+  }
 
-  for (const src of bookAudioCandidates) {
-    if (await assetExists(src)) {
-      queue.push({ src, label: `book:${src}` });
-    } else {
-      warnings.push(`Asset faltante: ${src}`);
-    }
+  const queue = takes.map(src => ({ src, label: `take:${src}` }));
+
+  const title = await resolveFirstExisting(buildMetaAudioCandidates(bookId, "title"), assetExists);
+  const author = await resolveFirstExisting(buildMetaAudioCandidates(bookId, "author"), assetExists);
+
+  if (title) {
+    queue.push({ src: title, label: `book:${title}` });
+  }
+  if (author) {
+    queue.push({ src: author, label: `book:${author}` });
   }
 
   const pageNumberAudio = await buildNumberAudio(selection.pageNumber);
@@ -303,36 +306,64 @@ async function buildShowAudioQueue(selection) {
   }
   queue.push(...lineNumberAudio.map(src => ({ src, label: `line:${selection.lineNumber}` })));
 
-  const firstLineTakes = await findLineTakeAudios(selection);
-  if (!firstLineTakes.length) {
-    warnings.push("No se encontraron takes locales para la línea seleccionada.");
-  }
-  queue.push(...firstLineTakes.map(src => ({ src, label: `take:${src}` })));
-
   return { queue, warnings };
 }
 
-async function findLineTakeAudios(selection) {
-  const pageSlug = String(selection.pageNumber).padStart(3, "0");
-  const lineSlug = String(selection.lineNumber).padStart(2, "0");
-  const root = normalizeRootPath(selection.book.root);
+function pad3(value) {
+  return String(value).padStart(3, "0");
+}
 
-  const candidates = [
-    `${root}/audio/pages/page-${pageSlug}/line-${lineSlug}-take1.mp3`,
-    `${root}/audio/pages/page-${pageSlug}/line-${lineSlug}-take2.mp3`,
-    `${root}/audio/pages/page-${pageSlug}/line-${lineSlug}-take3.mp3`,
-    `${root}/audio/page-${pageSlug}/line-${lineSlug}-take1.mp3`,
-    `${root}/audio/page-${pageSlug}/line-${lineSlug}-take2.mp3`,
-    `${root}/audio/page-${pageSlug}/line-${lineSlug}-take3.mp3`,
+function pad2(value) {
+  return String(value).padStart(2, "0");
+}
+
+function buildMetaAudioCandidates(bookId, kind) {
+  return [
+    `../books/${bookId}/audios/_meta/${kind}.mp3`,
   ];
+}
 
-  const found = [];
-  for (const src of candidates) {
-    if (await assetExists(src)) {
-      found.push(src);
+function buildLineTakeCandidates(bookId, page, line, part) {
+  const pageFolder = `../books/${bookId}/audios/page-${pad3(page)}`;
+
+  return [
+    `${pageFolder}/line-${pad3(line)}_${part}.mp3`,
+    `${pageFolder}/line-${pad2(line)}_${part}.mp3`,
+  ];
+}
+
+async function resolveFirstExisting(candidates, assetExistsChecker) {
+  for (const candidate of candidates) {
+    if (await assetExistsChecker(candidate)) {
+      return candidate;
     }
   }
-  return found;
+  return null;
+}
+
+async function resolveLocalLineTakes(bookId, page, line, assetExistsChecker) {
+  const parts = ["p1", "p2", "p3"];
+  const resolved = [];
+
+  for (const part of parts) {
+    const candidates = buildLineTakeCandidates(bookId, page, line, part);
+
+    let found = null;
+    for (const candidate of candidates) {
+      if (await assetExistsChecker(candidate)) {
+        found = candidate;
+        break;
+      }
+    }
+
+    if (!found) {
+      return [];
+    }
+
+    resolved.push(found);
+  }
+
+  return resolved;
 }
 
 async function buildNumberAudio(number) {
