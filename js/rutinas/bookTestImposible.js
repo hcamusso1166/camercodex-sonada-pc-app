@@ -333,10 +333,36 @@ function buildPreviewLines(lines, selectedIndex) {
   }
   return preview;
 }
+async function resolveLocalLineTakes(bookId, page, line, assetExistsChecker) {
+  const parts = ["p1", "p2", "p3"];
+  const resolved = [];
+
+  for (const part of parts) {
+    const candidates = buildLineTakeCandidates(bookId, page, line, part);
+    let found = null;
+
+    for (const candidate of candidates) {
+      const ok = await assetExistsChecker(candidate);
+      console.log("[AUDIO][CHECK]", { part, candidate, ok });
+      if (ok) {
+        found = candidate;
+        break;
+      }
+    }
+
+    if (!found) {
+      return [];
+    }
+
+    resolved.push(found);
+  }
+
+  return resolved;
+}
 
 async function buildShowAudioQueue(selection) {
   const warnings = [];
-  const bookId = selection.book.id;
+const bookId = selection.book.bookId || selection.book.id;
 
   const takes = await resolveLocalLineTakes(bookId, selection.pageNumber, selection.lineNumber, assetExists);
   if (!takes.length) {

@@ -22,11 +22,14 @@
 
     setQueue(queue, context = {}) {
       this.stop("Nueva cola de audio recibida.");
-      this.queue = Array.isArray(queue) ? queue.slice() : [];
+      this.queue = Array.isArray(queue)
+        ? queue.map(item => this.normalizeQueueItem(item)).filter(Boolean)
+        : [];
       this.lastBuiltQueue = this.queue.slice();
       const label = context.label ? ` (${context.label})` : "";
       this.log("INFO", `Cola de audio construida${label}: ${this.queue.length} item(s).`);
-      if (!this.queue.length) {
+      const hasPlayableAudio = this.queue.some(item => item.type === "audio" && item.src);
+      if (!hasPlayableAudio) {
         this.setStatus("error / asset faltante", "No hay assets reproducibles para esta selección.");
       } else {
         this.setStatus("listo");
@@ -51,7 +54,11 @@
           return;
         }
         try {
-          await this.playItem(item, token);
+          if (item.type === "pause") {
+            await this.waitItem(item.ms, token);
+          } else if (item.type === "audio") {
+            await this.playItem(item, token);
+          }
         } catch (error) {
           this.lastError = error;
           this.setStatus("error / asset faltante", error.message);
@@ -88,6 +95,58 @@
       this.setStatus("detenido");
     }
 
+    normalizeQueueItem(item) {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+
+      if (item.type === "audio") {
+        if (!item.src || typeof item.src !== "string") {
+          return null;
+        }
+        return {
+          type: "audio",
+          src: item.src,
+          label: item.label || item.src,
+        };
+      }
+
+      if (item.type === "pause") {
+        const ms = Number(item.ms);
+        if (!Number.isFinite(ms) || ms < 0) {
+          return null;
+        }
+        return {
+          type: "pause",
+          ms,
+          label: item.label || `pause:${ms}ms`,
+        };
+      }
+
+      if (!item.type && item.src && typeof item.src === "string") {
+        return {
+          type: "audio",
+          src: item.src,
+          label: item.label || item.src,
+        };
+      }
+
+      return null;
+    }
+
+    waitItem(ms, token) {
+      return new Promise(resolve => {
+        const delay = Number.isFinite(ms) ? Math.max(0, ms) : 0;
+        setTimeout(() => {
+          if (token !== this.playToken) {
+            resolve();
+            return;
+          }
+          resolve();
+        }, delay);
+      });
+    }
+    
     playItem(item, token) {
       return new Promise((resolve, reject) => {
         const audio = new Audio(item.src);
