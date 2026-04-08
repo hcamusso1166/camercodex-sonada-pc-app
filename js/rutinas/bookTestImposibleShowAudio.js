@@ -7,33 +7,36 @@
       this.onStatus = options.onStatus || (() => {});
       this.audioEnabled = false;
       this.queue = [];
-      this.lastBuiltQueue = [];
+      this.lastPlayableQueue = [];
       this.currentAudio = null;
+      this.currentTimeoutId = null;
+      this.currentAudioCleanup = null;
+      this.isPlaying = false;
       this.playToken = 0;
-      this.status = "listo";
+      this.status = "idle";
       this.lastError = null;
     }
 
     enableFromUserGesture() {
       this.audioEnabled = true;
-      this.setStatus("listo");
+      this.emitStatus("idle", "Audio habilitado por interacción de usuario.");
       this.log("INFO", "Audio habilitado por interacción de usuario.");
     }
 
     setQueue(queue, context = {}) {
-      this.stop("Nueva cola de audio recibida.");
-      this.queue = Array.isArray(queue)
+      const normalizedQueue = Array.isArray(queue)
         ? queue.map(item => this.normalizeQueueItem(item)).filter(Boolean)
         : [];
-      this.lastBuiltQueue = this.queue.slice();
+      this.queue = normalizedQueue;
       const label = context.label ? ` (${context.label})` : "";
-      this.log("INFO", `Cola de audio construida${label}: ${this.queue.length} item(s).`);
+      this.log("INFO", `[AUDIO] Queue cargada${label}: ${this.queue.length} item(s)`);
       const hasPlayableAudio = this.queue.some(item => item.type === "audio" && item.src);
-      if (!hasPlayableAudio) {
-        this.setStatus("error / asset faltante", "No hay assets reproducibles para esta selección.");
-      } else {
-        this.setStatus("listo");
+      if (hasPlayableAudio) {
+        this.lastPlayableQueue = this.queue.map(item => ({ ...item }));
+        this.emitStatus("ready", "Cola lista para reproducir.");
+        return;
       }
+      this.emitStatus("error", "No hay assets reproducibles para esta selección.");
     }
 
     async playQueue() {
@@ -43,16 +46,29 @@
       }
       if (!this.queue.length) {
         this.log("WARN", "No hay cola de audio para reproducir.");
+        this.emitStatus("error", "No hay assets reproducibles para esta selección.");
         return;
+      }
+      if (this.isPlaying || this.currentAudio || this.currentTimeoutId) {
+        this.stop("Audio detenido para reiniciar reproducción.");
       }
 
       const token = ++this.playToken;
-      this.setStatus("reproduciendo");
+      this.isPlaying = true;
+      this.emitStatus("playing", "Iniciando reproducción de cola.");
 
-      for (const item of this.queue) {
+      for (let index = 0; index < this.queue.length; index += 1) {
+        const item = this.queue[index];
         if (token !== this.playToken) {
           return;
         }
+
+                this.emitStatus("playing", `Reproduciendo item ${index + 1}/${this.queue.length}: ${item.label || item.src}`, {
+          currentIndex: index,
+          currentLabel: item.label || item.src,
+        });
+        this.log("INFO", `[AUDIO] Reproduciendo item ${index + 1}/${this.queue.length}: ${item.label || item.src}`);
+
         try {
           if (item.type === "pause") {
             await this.waitItem(item.ms, token);
@@ -61,38 +77,66 @@
           }
         } catch (error) {
           this.lastError = error;
-          this.setStatus("error / asset faltante", error.message);
+          this.isPlaying = false;
+          this.emitStatus("error", error.message, {
+            currentIndex: index,
+            currentLabel: item.label || item.src,
+          });
           this.log("ERROR", `Error reproduciendo '${item.label || item.src}': ${error.message}`);
           return;
         }
       }
 
       if (token === this.playToken) {
+        this.isPlaying = false;
         this.currentAudio = null;
-        this.setStatus("listo");
+        this.log("INFO", "[AUDIO] Reproducción completada");
+        this.emitStatus("completed", "Reproducción completada.", {
+          currentIndex: this.queue.length - 1,
+        });
       }
     }
 
     async replay() {
-      if (!this.lastBuiltQueue.length) {
-        this.log("WARN", "Replay ignorado: todavía no hay cola construida.");
+      if (!["ready", "completed", "stopped", "playing"].includes(this.status)) {
+        this.log("WARN", "Replay ignorado: estado no permitido.");
         return;
       }
-      this.queue = this.lastBuiltQueue.slice();
+      if (!this.lastPlayableQueue.length) {
+        this.emitStatus("error", "No hay reproducción previa disponible para Replay.");
+        this.log("WARN", "Replay ignorado: todavía no hay cola reproducible previa.");
+        return;
+      }
+      this.log("INFO", "[AUDIO] Replay solicitado por operador.");
+      this.stop("Replay solicitado por operador.");
+      this.queue = this.lastPlayableQueue.map(item => ({ ...item }));
       await this.playQueue();
     }
 
     stop(reason = "Audio detenido manualmente.") {
       this.playToken += 1;
+            this.isPlaying = false;
+      if (this.currentTimeoutId) {
+        clearTimeout(this.currentTimeoutId);
+        this.currentTimeoutId = null;
+      }
+      if (this.currentAudioCleanup) {
+        this.currentAudioCleanup();
+        this.currentAudioCleanup = null;
+      }
       if (this.currentAudio) {
-        this.currentAudio.pause();
-        this.currentAudio.currentTime = 0;
+        try {
+          this.currentAudio.pause();
+          this.currentAudio.currentTime = 0;
+        } catch (error) {
+          // no-op: stop debe ser silencioso/idempotente
+        }
         this.currentAudio = null;
       }
       if (reason) {
-        this.log("INFO", reason);
+        this.log("INFO", `[AUDIO] ${reason}`);
       }
-      this.setStatus("detenido");
+      this.emitStatus("stopped", reason || "Audio detenido.");
     }
 
     normalizeQueueItem(item) {
@@ -137,7 +181,8 @@
     waitItem(ms, token) {
       return new Promise(resolve => {
         const delay = Number.isFinite(ms) ? Math.max(0, ms) : 0;
-        setTimeout(() => {
+        this.currentTimeoutId = setTimeout(() => {
+          this.currentTimeoutId = null;
           if (token !== this.playToken) {
             resolve();
             return;
@@ -155,7 +200,9 @@
         const cleanup = () => {
           audio.removeEventListener("ended", onEnded);
           audio.removeEventListener("error", onError);
+          this.currentAudioCleanup = null;
         };
+        this.currentAudioCleanup = cleanup;
 
         const onEnded = () => {
           cleanup();
@@ -180,9 +227,16 @@
       });
     }
 
-    setStatus(status, detail = "") {
-      this.status = status;
-      this.onStatus(status, detail);
+    emitStatus(state, message, extra = {}) {
+      this.status = state;
+      this.log("INFO", `[AUDIO] Estado => ${state}`);
+      this.onStatus({
+        state,
+        message,
+        queueLength: this.queue.length,
+        currentIndex: Number.isInteger(extra.currentIndex) ? extra.currentIndex : -1,
+        currentLabel: extra.currentLabel,
+      });
     }
 
     log(level, message) {

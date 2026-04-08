@@ -118,8 +118,9 @@ async function onStartShowClick() {
   
 function onTpDisconnected() {
   routineState.tpConnected = false;
+  showAudio?.stop("Audio detenido por desconexión TP.");
   renderTpStatus("TP desconectado");
-  updatePayloadStatus("Conexión BLE cerrada.", true);
+  updatePayloadStatus("Conexión BLE cerrada. Selección previa conservada.", false);
 }
 
 async function onTpEvent(event) {
@@ -220,6 +221,7 @@ async function handleSnapshotEvent(event) {
 
 function handleClearedEvent(event) {
   showAudio.stop("Audio cancelado por evento CLEARED.");
+  showAudio.setQueue([], { label: "CLEARED_RESET" });
   routineState.currentSelection = null;
   clearSelectionView();
   updatePayloadStatus(`Selección limpiada por TP (tpSeq=${event.tpSeq}).`, false);
@@ -602,10 +604,16 @@ function resetRoutineState() {
 
   updatePayloadStatus("Esperando inicio de show.", false);
   renderTpStatus("TP no conectado");
-  renderAudioStatus("detenido", "");
+  renderAudioStatus({
+    state: "idle",
+    message: "Esperando cola de audio.",
+    queueLength: 0,
+    currentIndex: -1,
+  });
   renderBookInfo(null, "—");
   clearSelectionView();
   renderLog();
+  refreshAudioButtons();
 }
 
 function renderTpStatus(label) {
@@ -614,11 +622,35 @@ function renderTpStatus(label) {
   }
 }
 
-function renderAudioStatus(status, detail = "") {
+function renderAudioStatus(statusPayload, detail = "") {
   if (!ui.audioStatusLabel) {
     return;
   }
-  ui.audioStatusLabel.textContent = detail ? `${status} (${detail})` : status;
+const payload = typeof statusPayload === "object" && statusPayload
+    ? statusPayload
+    : {
+      state: statusPayload || "idle",
+      message: detail || "",
+      queueLength: 0,
+      currentIndex: -1,
+    };
+  const state = payload.state || "idle";
+  const message = payload.message || "";
+  ui.audioStatusLabel.textContent = message ? `${state} (${message})` : state;
+  refreshAudioButtons(state);
+}
+
+function refreshAudioButtons(currentAudioState) {
+  const state = currentAudioState || showAudio?.status || "idle";
+  if (ui.startShowButton) {
+    ui.startShowButton.disabled = false;
+  }
+  if (ui.replayAudioButton) {
+    ui.replayAudioButton.disabled = !(showAudio?.lastPlayableQueue?.length > 0);
+  }
+  if (ui.stopAudioButton) {
+    ui.stopAudioButton.disabled = state !== "playing";
+  }
 }
 
 function renderBookInfo(book, code = "—") {
