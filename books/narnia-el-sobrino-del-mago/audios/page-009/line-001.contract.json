@@ -1,0 +1,20 @@
+{
+  "bookId": "narnia-el-sobrino-del-mago",
+  "page": 9,
+  "line": 1,
+  "lineHash": "C3CABE82",
+  "windowHash": "6FA67815",
+  "pageHash": "FA934579",
+  "sourceSay": "ESTE ES EL RELATO DE ALGO QUE SUCEDIÓ HACE MUCHO TIEMPO,",
+  "expectedAssets": [
+    "line-001_p1.mp3",
+    "line-001_p2.mp3",
+    "line-001_p3.mp3",
+    "../_meta/title.mp3",
+    "../_meta/author.mp3"
+  ],
+  "notes": [
+    "Slice mínimo de audio show-time",
+    "Los takes deben derivarse del SAY canónico ya validado"
+  ]
+}

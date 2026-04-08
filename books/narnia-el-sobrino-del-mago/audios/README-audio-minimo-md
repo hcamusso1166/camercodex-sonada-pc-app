@@ -1,0 +1,32 @@
+# Audio mínimo — vertical slice (01VV, pág. 9, renglón 1)
+
+Esta fase mínima requiere **5 MP3** para reproducir el show-time base.
+
+## Assets requeridos
+
+- `../books/narnia-el-sobrino-del-mago/audios/page-009/line-001_p1.mp3`
+- `../books/narnia-el-sobrino-del-mago/audios/page-009/line-001_p2.mp3`
+- `../books/narnia-el-sobrino-del-mago/audios/page-009/line-001_p3.mp3`
+- `../books/narnia-el-sobrino-del-mago/audios/_meta/title.mp3`
+- `../books/narnia-el-sobrino-del-mago/audios/_meta/author.mp3`
+
+> Compatibilidad de fallback para línea en 2 dígitos:
+> `line-01_p1.mp3`, `line-01_p2.mp3`, `line-01_p3.mp3`.
+
+## Orden esperado de reproducción
+
+1. p1
+2. pausa 700 ms
+3. p2
+4. pausa 900 ms
+5. p3
+6. pausa 1000 ms
+7. title
+8. pausa 350 ms
+9. author
+
+## Alcance de esta fase
+
+- Los audios numéricos de página/renglón quedan fuera de esta fase.
+- Si faltan `title` o `author`, los takes (`p1/p2/p3`) igual deben reproducirse.
+- Si falta alguno de `p1/p2/p3`, la cola se considera inválida.

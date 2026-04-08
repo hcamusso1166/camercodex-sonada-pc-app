@@ -3,10 +3,6 @@ const BOOK_DATA = {
   indexPath: "../books/index.json",
 };
 
-
-const AUDIO_DATA = {
-  baseNumbersPath: "../audios/suma",
-};
 const routineState = {
   books: [],
   currentBook: null,
@@ -348,29 +344,38 @@ async function buildShowAudioQueue(selection) {
     return { queue: [], warnings };
   }
 
-  const queue = takes.map(src => ({ src, label: `take:${src}` }));
+    const queue = [
+    { type: "audio", src: takes[0], label: "take:p1" },
+    { type: "pause", ms: 700, label: "pause:p1-p2" },
+    { type: "audio", src: takes[1], label: "take:p2" },
+    { type: "pause", ms: 900, label: "pause:p2-p3" },
+    { type: "audio", src: takes[2], label: "take:p3" },
+  ];
 
-  const title = await resolveFirstExisting(buildMetaAudioCandidates(bookId, "title"), assetExists);
-  const author = await resolveFirstExisting(buildMetaAudioCandidates(bookId, "author"), assetExists);
+  const titleCandidates = buildMetaAudioCandidates(bookId, "title");
+  const authorCandidates = buildMetaAudioCandidates(bookId, "author");
+  const title = await resolveFirstExisting(titleCandidates, assetExists);
+  const author = await resolveFirstExisting(authorCandidates, assetExists);
 
   if (title) {
-    queue.push({ src: title, label: `book:${title}` });
+    queue.push({ type: "pause", ms: 1000, label: "pause:after-p3" });
+    queue.push({ type: "audio", src: title, label: "book:title" });
+  } else {
+    warnings.push(`Asset faltante: ${titleCandidates[0]}`);
   }
+
   if (author) {
-    queue.push({ src: author, label: `book:${author}` });
+    if (title) {
+      queue.push({ type: "pause", ms: 350, label: "pause:title-author" });
+    } else {
+      queue.push({ type: "pause", ms: 1000, label: "pause:after-p3" });
+    }
+    queue.push({ type: "audio", src: author, label: "book:author" });
+  } else {
+    warnings.push(`Asset faltante: ${authorCandidates[0]}`);
   }
 
-  const pageNumberAudio = await buildNumberAudio(selection.pageNumber);
-  if (!pageNumberAudio.length) {
-    warnings.push(`No se encontró audio numérico para página ${selection.pageNumber}.`);
-  }
-  queue.push(...pageNumberAudio.map(src => ({ src, label: `page:${selection.pageNumber}` })));
-
-  const lineNumberAudio = await buildNumberAudio(selection.lineNumber);
-  if (!lineNumberAudio.length) {
-    warnings.push(`No se encontró audio numérico para renglón ${selection.lineNumber}.`);
-  }
-  queue.push(...lineNumberAudio.map(src => ({ src, label: `line:${selection.lineNumber}` })));
+  warnings.push("Audio numérico de página/renglón diferido en fase mínima.");
 
   return { queue, warnings };
 }
@@ -430,14 +435,6 @@ async function resolveLocalLineTakes(bookId, page, line, assetExistsChecker) {
   }
 
   return resolved;
-}
-
-async function buildNumberAudio(number) {
-  const directPath = `${AUDIO_DATA.baseNumbersPath}/${number}.mp3`;
-  if (await assetExists(directPath)) {
-    return [directPath];
-  }
-  return [];
 }
 
 function resolveBookByTpCode(bookCodeRaw) {
