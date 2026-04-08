@@ -1,4 +1,6 @@
 (function setupBookTestImposibleShowAudio(global) {
+    /*TODO(audio-canonical): los futuros takes (title/author/line-XXX_p1..p3) deben generarse
+      desde el SAY canónico de página y validarse por lineHash para alinear texto + audio.*/
   class BookTestImposibleShowAudio {
     constructor(options = {}) {
       this.onLog = options.onLog || (() => {});

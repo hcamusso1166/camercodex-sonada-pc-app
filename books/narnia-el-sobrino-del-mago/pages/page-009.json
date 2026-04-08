@@ -1,16 +1,24 @@
 {
-  "bookId": "narnia-el-sobrino-del-mago",
   "page": 9,
-  "lines": [
-    "Digory miró la puerta cerrada y no supo qué responder.",
-    "Polly levantó la lámpara para ver mejor los anillos.",
-    "El cuarto olía a polvo y a madera vieja.",
-    "Ninguno de los dos quería admitir que tenía miedo.",
-    "Entonces escucharon un ruido suave detrás de la pared.",
-    "Se quedaron inmóviles, conteniendo la respiración.",
-    "—Si vamos a hacerlo, hagámoslo ahora —susurró Polly.",
-    "Digory asintió y guardó el anillo amarillo en el bolsillo.",
-    "La aventura acababa de empezar para los dos.",
-    "Y todavía no imaginaban lo que encontrarían al otro lado."
+  "bookId": "narnia-el-sobrino-del-mago",
+  "lineCount": 17,
+  "sayLines": [
+    "ESTE ES EL RELATO DE ALGO QUE SUCEDIÓ HACE MUCHO TIEMPO,",
+    "CUANDO TU ABUELO ERA UN NIÑO. ES UNA HIS-TORIA;",
+    "HIS-TORIA MUY IMPORTANTE PORQUE MUESTRA COMO:",
+    "EMPEZARON TODAS LAS IDAS Y VENIDAS ENTRE NUESTRO",
+    "MUNDO Y EL DE NARNIA.",
+    "EN AQUELLOS TIEMPOS SHERLOCK HOLMES VIVÍA",
+    "AUN EN LA CALLE BAKER Y LOS BASTABLE BUSCABAN",
+    "TESOROS EN LEWISHAM ROAD. EN AQUELLOS TIEM-POS",
+    "TIEM-POS, LOS NIÑOS TENÍAN QUE LLEVAR UN RÍGIDO CUELLO",
+    "ALMIDONADO A DIARIO, Y LAS ESCUELAS ERAN POR",
+    "LO GENERAL MAS DESAGRADABLES QUE HOY EN DÍA.",
+    "AUNQUE LAS COMIDAS ERAN MEJORES; Y EN CUANTO",
+    "A LOS DULCES, ¡NO QUIERO NI CONTARLE LO BARATOS",
+    "Y DELICIOSOS QUE ERAN, PORQUE SOLO CONSEGUIRÍA",
+    "QUE SE TE HICIERA LA BOCA AGUA EN VANO! Y EN ESA",
+    "ÉPOCA VIVÍA EN LONDRES UNA NIÑA LLAMADA POLLY",
+    "PLUMMER."
   ]
 }

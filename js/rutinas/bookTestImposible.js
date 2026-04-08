@@ -29,6 +29,9 @@ const ui = {
   resolvedPage: null,
   resolvedLine: null,
   resolvedContextList: null,
+  resolvedPageHash: null,
+  resolvedLineHash: null,
+  resolvedWindowHash: null,
   routineLog: null,
 };
 
@@ -64,6 +67,9 @@ function bindUiElements() {
   ui.resolvedPage = document.getElementById("resolvedPage");
   ui.resolvedLine = document.getElementById("resolvedLine");
   ui.resolvedContextList = document.getElementById("resolvedContextList");
+  ui.resolvedPageHash = document.getElementById("resolvedPageHash");
+  ui.resolvedLineHash = document.getElementById("resolvedLineHash");
+  ui.resolvedWindowHash = document.getElementById("resolvedWindowHash");
 
   ui.routineLog = document.getElementById("routineLog");
 }
@@ -236,23 +242,83 @@ async function resolveSelection(book, page, line) {
   logInfo(`Resolviendo página desde: ${pagePath}`, "DATA");
   const pageData = await loadJson(pagePath, `No se pudo cargar la página ${page}`);
 
-  const lines = extractLines(pageData);
-  if (!lines.length) {
-    throw new Error(`La página ${page} no contiene líneas utilizables.`);
+  const sayLines = extractSayLines(pageData);
+  if (!sayLines.length) {
+    throw new Error(`La página ${page} no contiene líneas SAY utilizables.`);
   }
 
   const lineIndex = line - 1;
-  if (lineIndex < 0 || lineIndex >= lines.length) {
-    throw new Error(`Renglón fuera de rango. La página ${page} tiene ${lines.length} líneas.`);
+  if (lineIndex < 0 || lineIndex >= sayLines.length) {
+    throw new Error(`Renglón fuera de rango. La página ${page} tiene ${sayLines.length} líneas.`);
   }
+
+  if (page === 9) {
+    logInfo("Página 009 cargada", "DATA");
+  }
+  logInfo(`SAY lines: ${sayLines.length}`, "DATA");
+
+  const windowLines = resolveSayWindow(sayLines, line);
+  const pageHash = buildPageHash(sayLines);
+  const lineHash = buildLineHash(sayLines[lineIndex]);
+  const windowHash = buildWindowHash(windowLines);
+
+  logInfo(`pageHash=${pageHash}`, "HASH");
+  logInfo(`lineHash=${lineHash}`, "HASH");
+  logInfo(`windowHash=${windowHash}`, "HASH");
+  logInfo(`Ventana resuelta con ${windowLines.length} línea(s)`, "VIEW");
+
+  logTpCanonicalAlignment(page, line, windowLines, pageHash, windowHash);
 
   return {
     book,
     pageNumber: page,
     lineNumber: line,
-    selectedLine: lines[lineIndex],
-    previewLines: buildPreviewLines(lines, lineIndex),
+    selectedLine: sayLines[lineIndex],
+    sayLines,
+    windowLines,
+    pageHash,
+    lineHash,
+    windowHash,
+    previewLines: buildPreviewLines(sayLines, lineIndex),
   };
+}
+
+function resolveSayWindow(sayLines, selectedLine) {
+  return window.BookTestImposibleCanonical?.resolveSayWindow(sayLines, selectedLine)
+    || buildPreviewLines(sayLines, Math.max(0, selectedLine - 1)).map(item => item.text);
+}
+
+function buildPageHash(sayLines) {
+  return window.BookTestImposibleCanonical?.buildPageHash(sayLines) || "00000000";
+}
+
+function buildWindowHash(windowLines) {
+  return window.BookTestImposibleCanonical?.buildWindowHash(windowLines) || "00000000";
+}
+
+function buildLineHash(line) {
+  return window.BookTestImposibleCanonical?.buildLineHash(line) || "00000000";
+}
+
+function logTpCanonicalAlignment(page, selectedLine, appWindowLines, appPageHash, appWindowHash) {
+  if (page !== 9 || selectedLine <= 0) {
+    return;
+  }
+
+  const tpSayLines = window.BookTestImposibleCanonical?.getTpCanonicalPage009SayLines?.() || [];
+  const tpWindowLines = resolveSayWindow(tpSayLines, selectedLine);
+  const tpPageHash = buildPageHash(tpSayLines);
+  const tpWindowHash = buildWindowHash(tpWindowLines);
+
+  logInfo("Page 009 canonical SAY loaded", "TP");
+  logInfo(`pageHash=${tpPageHash}`, "TP");
+  logInfo(`windowHash=${tpWindowHash}`, "TP");
+  logInfo(`selectedLine=${selectedLine}`, "TP");
+  logInfo(`windowLines=${tpWindowLines.length}`, "TP");
+
+  if (tpPageHash !== appPageHash || tpWindowHash !== appWindowHash || tpWindowLines.join("\n") !== appWindowLines.join("\n")) {
+    logError("Desalineación detectada entre app y resolución local TP canónica.", "TP");
+  }
 }
 
 function buildPreviewLines(lines, selectedIndex) {
@@ -477,8 +543,9 @@ function buildPagePath(book, page) {
   return `${normalizeRootPath(book.root)}/pages/page-${pageSlug}.json`;
 }
 
-function extractLines(pageData) {
+function extractSayLines(pageData) {
   const candidates = [
+    pageData?.sayLines,
     pageData?.lines,
     pageData?.lineas,
     pageData?.content?.lines,
@@ -538,9 +605,12 @@ function renderBookInfo(book, code = "—") {
 }
 
 function clearSelectionView() {
-    ui.resolvedPage.textContent = "—";
+  ui.resolvedPage.textContent = "—";
   ui.resolvedLine.textContent = "—";
   ui.resolvedContextList.innerHTML = "<li>—</li>";
+  if (ui.resolvedPageHash) ui.resolvedPageHash.textContent = "—";
+  if (ui.resolvedLineHash) ui.resolvedLineHash.textContent = "—";
+  if (ui.resolvedWindowHash) ui.resolvedWindowHash.textContent = "—";
 }
 
 function renderSelection(selection) {
@@ -557,6 +627,10 @@ function renderSelection(selection) {
     }
     ui.resolvedContextList.appendChild(li);
   });
+
+  if (ui.resolvedPageHash) ui.resolvedPageHash.textContent = selection.pageHash || "—";
+  if (ui.resolvedLineHash) ui.resolvedLineHash.textContent = selection.lineHash || "—";
+  if (ui.resolvedWindowHash) ui.resolvedWindowHash.textContent = selection.windowHash || "—";
 }
 
 function updatePayloadStatus(message, isError) {
@@ -599,4 +673,8 @@ window.bookTestImposibleDev = {
   buildPagePath,
   buildPreviewLines,
   resolveBookByTpCode,
+  resolveSayWindow,
+  buildPageHash,
+  buildWindowHash,
+  buildLineHash,
 };
