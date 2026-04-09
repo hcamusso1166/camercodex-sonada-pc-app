@@ -10,6 +10,8 @@ const routineState = {
   lastTpSeq: -1,
   logs: [],
   tpConnected: false,
+  tpConnectionState: "disconnected",
+  startShowButtonDefaultLabel: "",
 };
 
 const ui = {
@@ -51,6 +53,7 @@ async function initBookTestImposibleRoutine() {
 
 function bindUiElements() {
   ui.startShowButton = document.getElementById("startShowButton");
+  routineState.startShowButtonDefaultLabel = ui.startShowButton?.textContent || "Iniciar show / conectar TP";
   ui.replayAudioButton = document.getElementById("replayAudioButton");
   ui.stopAudioButton = document.getElementById("stopAudioButton");
   ui.tpStatusLabel = document.getElementById("tpStatusLabel");
@@ -102,14 +105,32 @@ async function preloadBooks() {
 }
 
 async function onStartShowClick() {
+  if (routineState.tpConnectionState === "connected" || isTpAdapterConnected()) {
+    routineState.tpConnectionState = "connected";
+    logInfo("[BLE] Conexión ignorada: TP ya conectado.", "BLE");
+    return;
+  }
+
+  if (routineState.tpConnectionState === "connecting") {
+    logInfo("[BLE] Conexión ignorada: TP en proceso de conexión.", "BLE");
+    return;
+  }
+
+  if (routineState.tpConnectionState !== "disconnected") {
+    return;
+  }
+
   try {
     showAudio.enableFromUserGesture();
+    setTpConnectionState("connecting");
     updatePayloadStatus("Conectando al TP...", false);
     await tpAdapter.connect();
+    setTpConnectionState("connected");
     routineState.tpConnected = true;
     renderTpStatus("TP conectado");
     updatePayloadStatus("Sesión show-time activa. Esperando eventos TP.", false);
   } catch (error) {
+    setTpConnectionState("disconnected");
     logError(`No se pudo iniciar show: ${error.message}`, "BLE");
     renderTpStatus("TP no conectado");
     updatePayloadStatus(error.message, true);
@@ -117,6 +138,7 @@ async function onStartShowClick() {
 }
   
 function onTpDisconnected() {
+  setTpConnectionState("disconnected");
   routineState.tpConnected = false;
   showAudio?.stop("Audio detenido por desconexión TP.");
   renderTpStatus("TP desconectado");
@@ -601,6 +623,7 @@ function resetRoutineState() {
   routineState.lastTpSeq = -1;
   routineState.logs = [];
   routineState.tpConnected = false;
+  setTpConnectionState("disconnected");
 
   updatePayloadStatus("Esperando inicio de show.", false);
   renderTpStatus("TP no conectado");
@@ -642,15 +665,32 @@ const payload = typeof statusPayload === "object" && statusPayload
 
 function refreshAudioButtons(currentAudioState) {
   const state = currentAudioState || showAudio?.status || "idle";
-  if (ui.startShowButton) {
-    ui.startShowButton.disabled = false;
-  }
   if (ui.replayAudioButton) {
     ui.replayAudioButton.disabled = !(showAudio?.lastPlayableQueue?.length > 0);
   }
   if (ui.stopAudioButton) {
     ui.stopAudioButton.disabled = state !== "playing";
   }
+}
+
+function isTpAdapterConnected() {
+  return Boolean(tpAdapter?.device?.gatt?.connected || tpAdapter?.server?.connected);
+}
+
+function setTpConnectionState(state) {
+  routineState.tpConnectionState = state;
+  if (!ui.startShowButton) {
+    return;
+  }
+
+  if (state === "connecting") {
+    ui.startShowButton.disabled = true;
+    ui.startShowButton.textContent = "Conectando TP...";
+    return;
+  }
+
+  ui.startShowButton.disabled = false;
+  ui.startShowButton.textContent = routineState.startShowButtonDefaultLabel;
 }
 
 function renderBookInfo(book, code = "—") {

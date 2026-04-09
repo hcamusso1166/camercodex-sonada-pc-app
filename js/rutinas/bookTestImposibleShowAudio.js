@@ -28,8 +28,10 @@
         ? queue.map(item => this.normalizeQueueItem(item)).filter(Boolean)
         : [];
       this.queue = normalizedQueue;
-      const label = context.label ? ` (${context.label})` : "";
-      this.log("INFO", `[AUDIO] Queue cargada${label}: ${this.queue.length} item(s)`);
+      this.log("INFO", `[AUDIO] Queue cargada: ${this.queue.length} item(s)`);
+      if (context.label) {
+        this.log("INFO", `[AUDIO] Contexto cola: ${context.label}`);
+      }
       const hasPlayableAudio = this.queue.some(item => item.type === "audio" && item.src);
       if (hasPlayableAudio) {
         this.lastPlayableQueue = this.queue.map(item => ({ ...item }));
