@@ -138,6 +138,14 @@
       const lineSlug = this.pad3(line);
       const base = `../books/${bookId}/audios/page-${pageSlug}`;
 
+      if (page === 9 && line === 16) {
+        return {
+          p1: `${base}/line-016_p1.mp3`,
+          p2: `${base}/line-016_p2.mp3`,
+          p3: `${base}/line-017_p1.mp3`,
+        };
+      }
+
       return {
         p1: `${base}/line-${lineSlug}_p1.mp3`,
         p2: `${base}/line-${lineSlug}_p2.mp3`,
@@ -156,11 +164,12 @@
         return;
       }
 
-      const takes = this.getClassicTakeUrls(bookId, page, line);
+      const effectiveLine = this.normalizeClassicLine(page, line);
+      const takes = this.getClassicTakeUrls(bookId, page, effectiveLine);
       const queue = this.buildClassicQueueFromTakes(takes);
-      this.setQueue(queue, { label: `classic:${bookId}:page-${this.pad3(page)}:line-${this.pad3(line)}` });
+      this.setQueue(queue, { label: `classic:${bookId}:page-${this.pad3(page)}:line-${this.pad3(effectiveLine)}` });
 
-      this.log("INFO", `[AUDIO] Preparando clásico page=${this.pad3(page)} line=${this.pad3(line)}`);
+      this.log("INFO", `[AUDIO] Preparando clásico page=${this.pad3(page)} line=${this.pad3(effectiveLine)}`);
       try {
         await this.playQueue();
         if (this.status === "completed") {
@@ -172,6 +181,14 @@
       }
     }
 
+    normalizeClassicLine(page, line) {
+      if (page === 9 && line === 17) {
+        this.log("INFO", "[AUDIO] Page 009 line 017 remapeada a line 016 (cola no seleccionable)");
+        return 16;
+      }
+      return line;
+    }
+    
     buildClassicQueueFromTakes(takes) {
       const pacing = this.classicPacing;
       return [
@@ -328,7 +345,7 @@
     pad3(value) {
       return String(value).padStart(3, "0");
     }
-    
+
     emitStatus(state, message, extra = {}, options = {}) {
       this.status = state;
       if (this.lastStatusState !== state || options.forceTransitionLog === true) {

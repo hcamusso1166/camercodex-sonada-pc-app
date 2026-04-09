@@ -220,7 +220,7 @@ async function handleSelectionEvent(event) {
       await showAudio.playClassicLineAudio(selection.book.bookId, selection.pageNumber, selection.lineNumber);
       return;
     }
-    
+
     const queueResult = await buildShowAudioQueue(selection);
     showAudio.setQueue(queueResult.queue, { label: `tpSeq ${event.tpSeq}` });
     queueResult.warnings.forEach(warning => logInfo(warning, "AUDIO"));
@@ -272,9 +272,10 @@ async function resolveSelection(book, page, line) {
     throw new Error(`La página ${page} no contiene líneas SAY utilizables.`);
   }
 
-  const lineIndex = line - 1;
+  const normalizedLine = normalizeShowSelectionLine(page, line);
+  const lineIndex = normalizedLine - 1;
   if (lineIndex < 0 || lineIndex >= sayLines.length) {
-    throw new Error(`Renglón fuera de rango. La página ${page} tiene ${sayLines.length} líneas.`);
+    throw new Error(`Renglón fuera de rango. La página ${page} tiene ${sayLines.length} líneas reales.`);
   }
 
   if (page === 9) {
@@ -282,7 +283,7 @@ async function resolveSelection(book, page, line) {
   }
   logInfo(`SAY lines: ${sayLines.length}`, "DATA");
 
-  const windowLines = resolveSayWindow(sayLines, line);
+  const windowLines = resolveSayWindow(sayLines, normalizedLine);
   const pageHash = buildPageHash(sayLines);
   const lineHash = buildLineHash(sayLines[lineIndex]);
   const windowHash = buildWindowHash(windowLines);
@@ -292,12 +293,12 @@ async function resolveSelection(book, page, line) {
   logInfo(`windowHash=${windowHash}`, "HASH");
   logInfo(`Ventana resuelta con ${windowLines.length} línea(s)`, "VIEW");
 
-  logTpCanonicalAlignment(page, line, windowLines, pageHash, windowHash);
+  logTpCanonicalAlignment(page, normalizedLine, windowLines, pageHash, windowHash);
 
   return {
     book,
     pageNumber: page,
-    lineNumber: line,
+    ineNumber: normalizedLine,
     selectedLine: sayLines[lineIndex],
     sayLines,
     windowLines,
@@ -306,6 +307,14 @@ async function resolveSelection(book, page, line) {
     windowHash,
     previewLines: buildPreviewLines(sayLines, lineIndex),
   };
+}
+
+function normalizeShowSelectionLine(page, line) {
+  if (page === 9 && line === 17) {
+    logInfo("[AUDIO] Page 009 line 017 remapeada a line 016 (cola no seleccionable)", "AUDIO");
+    return 16;
+  }
+  return line;
 }
 
 function resolveSayWindow(sayLines, selectedLine) {
