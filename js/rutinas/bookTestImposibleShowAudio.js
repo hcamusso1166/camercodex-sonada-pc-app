@@ -16,6 +16,13 @@
       this.status = "idle";
       this.lastStatusState = null;
       this.lastError = null;
+      this.classicPacing = {
+        PAUSE_SHORT_MS: 350,
+        PAUSE_MEDIUM_MS: 700,
+        PAUSE_LONG_MS: 1300,
+        BETWEEN_TAKE_1_2_MS: 1200,
+        BETWEEN_TAKE_2_3_MS: 1600,
+      };
     }
 
     enableFromUserGesture() {
@@ -73,11 +80,14 @@
           return;
         }
 
-                this.emitStatus("playing", `Reproduciendo item ${index + 1}/${this.queue.length}: ${item.label || item.src}`, {
+        this.emitStatus("playing", `Reproduciendo item ${index + 1}/${this.queue.length}: ${item.label || item.src}`, {
           currentIndex: index,
           currentLabel: item.label || item.src,
         });
         this.log("INFO", `Reproduciendo item ${index + 1}/${this.queue.length}: ${item.label || item.src}`);
+        if (typeof item.label === "string" && item.label.startsWith("Take ")) {
+          this.log("INFO", `[AUDIO] ${item.label}`);
+        }
 
         try {
           if (item.type === "pause") {
@@ -121,6 +131,68 @@
       this.stop("Audio detenido para replay.", { emitStoppedState: true });
       await this.ensureStoppedState();
       await this.playQueue(this.lastPlayableQueue.map(item => ({ ...item })));
+    }
+
+    getClassicTakeUrls(bookId, page, line) {
+      const pageSlug = this.pad3(page);
+      const lineSlug = this.pad3(line);
+      const base = `../books/${bookId}/audios/page-${pageSlug}`;
+
+      return {
+        p1: `${base}/line-${lineSlug}_p1.mp3`,
+        p2: `${base}/line-${lineSlug}_p2.mp3`,
+        p3: `${base}/line-${lineSlug}_p3.mp3`,
+      };
+    }
+
+    async playClassicLineAudio(bookId, page, line) {
+      if (!Number.isInteger(page) || !Number.isInteger(line) || !bookId) {
+        this.log("ERROR", `[AUDIO][ERROR] Parámetros inválidos para clásico (bookId=${bookId}, page=${page}, line=${line}).`);
+        return;
+      }
+
+      if (page !== 9) {
+        this.log("WARN", `[AUDIO] Clásico no implementado para page=${this.pad3(page)} todavía.`);
+        return;
+      }
+
+      const takes = this.getClassicTakeUrls(bookId, page, line);
+      const queue = this.buildClassicQueueFromTakes(takes);
+      this.setQueue(queue, { label: `classic:${bookId}:page-${this.pad3(page)}:line-${this.pad3(line)}` });
+
+      this.log("INFO", `[AUDIO] Preparando clásico page=${this.pad3(page)} line=${this.pad3(line)}`);
+      try {
+        await this.playQueue();
+        if (this.status === "completed") {
+          this.log("INFO", "[AUDIO] Clásico finalizado");
+        }
+      } catch (error) {
+        this.log("ERROR", `[AUDIO][ERROR] ${error.message}`);
+        this.stop("Audio clásico abortado por error.");
+      }
+    }
+
+    buildClassicQueueFromTakes(takes) {
+      const pacing = this.classicPacing;
+      return [
+        { type: "audio", src: takes.p1, label: "Take 1 / p1" },
+        { type: "pause", ms: pacing.PAUSE_SHORT_MS, label: "pause:t1:p1-p2" },
+        { type: "audio", src: takes.p2, label: "Take 1 / p2" },
+        { type: "pause", ms: pacing.PAUSE_SHORT_MS, label: "pause:t1:p2-p3" },
+        { type: "audio", src: takes.p3, label: "Take 1 / p3" },
+        { type: "pause", ms: pacing.BETWEEN_TAKE_1_2_MS, label: "pause:t1-t2" },
+        { type: "audio", src: takes.p1, label: "Take 2 / p1" },
+        { type: "pause", ms: pacing.PAUSE_MEDIUM_MS, label: "pause:t2:p1-p2" },
+        { type: "audio", src: takes.p2, label: "Take 2 / p2" },
+        { type: "pause", ms: pacing.PAUSE_MEDIUM_MS, label: "pause:t2:p2-p3" },
+        { type: "audio", src: takes.p3, label: "Take 2 / p3" },
+        { type: "pause", ms: pacing.BETWEEN_TAKE_2_3_MS, label: "pause:t2-t3" },
+        { type: "audio", src: takes.p1, label: "Take 3 / p1" },
+        { type: "pause", ms: pacing.PAUSE_MEDIUM_MS, label: "pause:t3:p1-p2" },
+        { type: "audio", src: takes.p2, label: "Take 3 / p2" },
+        { type: "pause", ms: pacing.PAUSE_LONG_MS, label: "pause:t3:p2-p3" },
+        { type: "audio", src: takes.p3, label: "Take 3 / p3" },
+      ];
     }
 
     stop(reason = "Audio detenido manualmente.", options = {}) {
@@ -234,6 +306,9 @@
 
         const onError = () => {
           cleanup();
+          if (token === this.playToken) {
+            this.currentAudio = null;
+          }
           reject(new Error(`No se pudo cargar audio en ${item.src}`));
         };
 
@@ -242,11 +317,18 @@
 
         audio.play().catch(error => {
           cleanup();
+          if (token === this.playToken) {
+            this.currentAudio = null;
+          }
           reject(error);
         });
       });
     }
 
+    pad3(value) {
+      return String(value).padStart(3, "0");
+    }
+    
     emitStatus(state, message, extra = {}, options = {}) {
       this.status = state;
       if (this.lastStatusState !== state || options.forceTransitionLog === true) {

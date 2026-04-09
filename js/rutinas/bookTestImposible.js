@@ -216,6 +216,11 @@ async function handleSelectionEvent(event) {
     updatePayloadStatus(`Selección resuelta: pág ${selection.pageNumber}, línea ${selection.lineNumber}.`, false);
     logInfo(`Selección resuelta para ${selection.book.bookId}.`, "DATA");
 
+        if (selection.pageNumber === 9) {
+      await showAudio.playClassicLineAudio(selection.book.bookId, selection.pageNumber, selection.lineNumber);
+      return;
+    }
+    
     const queueResult = await buildShowAudioQueue(selection);
     showAudio.setQueue(queueResult.queue, { label: `tpSeq ${event.tpSeq}` });
     queueResult.warnings.forEach(warning => logInfo(warning, "AUDIO"));
