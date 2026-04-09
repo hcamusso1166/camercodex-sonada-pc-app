@@ -14,6 +14,7 @@
       this.isPlaying = false;
       this.playToken = 0;
       this.status = "idle";
+      this.lastStatusState = null;
       this.lastError = null;
     }
 
@@ -28,14 +29,18 @@
         ? queue.map(item => this.normalizeQueueItem(item)).filter(Boolean)
         : [];
       this.queue = normalizedQueue;
-      this.log("INFO", `[AUDIO] Queue cargada: ${this.queue.length} item(s)`);
+      this.log("INFO", `Queue cargada: ${this.queue.length} item(s)`);
       if (context.label) {
-        this.log("INFO", `[AUDIO] Contexto cola: ${context.label}`);
+        this.log("INFO", `Contexto cola: ${context.label}`);
       }
       const hasPlayableAudio = this.queue.some(item => item.type === "audio" && item.src);
       if (hasPlayableAudio) {
         this.lastPlayableQueue = this.queue.map(item => ({ ...item }));
         this.emitStatus("ready", "Cola lista para reproducir.");
+        return;
+      }
+      if (this.queue.length === 0 && ["BOOK_RESET", "CLEARED_RESET"].includes(context.label)) {
+        this.emitStatus("idle", "Sin audio pendiente.");
         return;
       }
       this.emitStatus("error", "No hay assets reproducibles para esta selección.");
@@ -69,7 +74,7 @@
           currentIndex: index,
           currentLabel: item.label || item.src,
         });
-        this.log("INFO", `[AUDIO] Reproduciendo item ${index + 1}/${this.queue.length}: ${item.label || item.src}`);
+        this.log("INFO", `Reproduciendo item ${index + 1}/${this.queue.length}: ${item.label || item.src}`);
 
         try {
           if (item.type === "pause") {
@@ -92,7 +97,7 @@
       if (token === this.playToken) {
         this.isPlaying = false;
         this.currentAudio = null;
-        this.log("INFO", "[AUDIO] Reproducción completada");
+        this.log("INFO", "Reproducción completada");
         this.emitStatus("completed", "Reproducción completada.", {
           currentIndex: this.queue.length - 1,
         });
@@ -109,8 +114,8 @@
         this.log("WARN", "Replay ignorado: todavía no hay cola reproducible previa.");
         return;
       }
-      this.log("INFO", "[AUDIO] Replay solicitado por operador.");
-      this.stop("Replay solicitado por operador.");
+      this.log("INFO", "Replay solicitado por operador.");
+      this.stop("Audio detenido para replay.");
       this.queue = this.lastPlayableQueue.map(item => ({ ...item }));
       await this.playQueue();
     }
@@ -136,7 +141,7 @@
         this.currentAudio = null;
       }
       if (reason) {
-        this.log("INFO", `[AUDIO] ${reason}`);
+        this.log("INFO", reason);
       }
       this.emitStatus("stopped", reason || "Audio detenido.");
     }
@@ -231,7 +236,10 @@
 
     emitStatus(state, message, extra = {}) {
       this.status = state;
-      this.log("INFO", `[AUDIO] Estado => ${state}`);
+      if (this.lastStatusState !== state) {
+        this.log("INFO", `Estado => ${state}`);
+        this.lastStatusState = state;
+      }
       this.onStatus({
         state,
         message,

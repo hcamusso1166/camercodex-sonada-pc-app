@@ -107,12 +107,12 @@ async function preloadBooks() {
 async function onStartShowClick() {
   if (routineState.tpConnectionState === "connected" || isTpAdapterConnected()) {
     routineState.tpConnectionState = "connected";
-    logInfo("[BLE] Conexión ignorada: TP ya conectado.", "BLE");
+    logInfo("Conexión ignorada: TP ya conectado.", "BLE");
     return;
   }
 
   if (routineState.tpConnectionState === "connecting") {
-    logInfo("[BLE] Conexión ignorada: TP en proceso de conexión.", "BLE");
+    logInfo("Conexión ignorada: TP en proceso de conexión.", "BLE");
     return;
   }
 
@@ -367,7 +367,7 @@ async function resolveLocalLineTakes(bookId, page, line, assetExistsChecker) {
 
     for (const candidate of candidates) {
       const ok = await assetExistsChecker(candidate);
-      console.log("[AUDIO][CHECK]", { part, candidate, ok });
+      console.log("CHECK", { part, candidate, ok });
       if (ok) {
         found = candidate;
         break;
