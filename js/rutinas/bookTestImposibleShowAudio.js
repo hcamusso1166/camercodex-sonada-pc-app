@@ -46,7 +46,10 @@
       this.emitStatus("error", "No hay assets reproducibles para esta selección.");
     }
 
-    async playQueue() {
+    async playQueue(queueOverride = null) {
+      if (Array.isArray(queueOverride)) {
+        this.queue = queueOverride.map(item => this.normalizeQueueItem(item)).filter(Boolean);
+      }
       if (!this.audioEnabled) {
         this.log("WARN", "Audio no habilitado aún. Se requiere click en 'Iniciar show / conectar TP'.");
         return;
@@ -115,14 +118,15 @@
         return;
       }
       this.log("INFO", "Replay solicitado por operador.");
-      this.stop("Audio detenido para replay.");
-      this.queue = this.lastPlayableQueue.map(item => ({ ...item }));
-      await this.playQueue();
+      this.stop("Audio detenido para replay.", { emitStoppedState: true });
+      await this.ensureStoppedState();
+      await this.playQueue(this.lastPlayableQueue.map(item => ({ ...item })));
     }
 
-    stop(reason = "Audio detenido manualmente.") {
+    stop(reason = "Audio detenido manualmente.", options = {}) {
+      const shouldForceStoppedState = options.emitStoppedState === true;
       this.playToken += 1;
-            this.isPlaying = false;
+      this.isPlaying = false;
       if (this.currentTimeoutId) {
         clearTimeout(this.currentTimeoutId);
         this.currentTimeoutId = null;
@@ -143,7 +147,16 @@
       if (reason) {
         this.log("INFO", reason);
       }
-      this.emitStatus("stopped", reason || "Audio detenido.");
+      this.emitStatus("stopped", reason || "Audio detenido.", {}, {
+        forceTransitionLog: shouldForceStoppedState,
+      });
+    }
+
+    async ensureStoppedState() {
+      if (this.status === "stopped") {
+        return;
+      }
+      await new Promise(resolve => setTimeout(resolve, 0));
     }
 
     normalizeQueueItem(item) {
@@ -234,9 +247,9 @@
       });
     }
 
-    emitStatus(state, message, extra = {}) {
+    emitStatus(state, message, extra = {}, options = {}) {
       this.status = state;
-      if (this.lastStatusState !== state) {
+      if (this.lastStatusState !== state || options.forceTransitionLog === true) {
         this.log("INFO", `Estado => ${state}`);
         this.lastStatusState = state;
       }
