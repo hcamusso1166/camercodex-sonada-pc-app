@@ -268,11 +268,17 @@
       ];
     }
 
-    buildPostShowQueue(bookId, page, line) {
+    buildPostShowQueue(bookId, page, line, options = {}) {
       const pageSlug = this.pad3(page);
       const lineSlug = this.pad3(line);
+      const requestedLine = Number.isInteger(options.requestedLine) ? options.requestedLine : line;
       const titleSrc = `../books/${bookId}/audios/_meta/title.mp3`;
       const authorSrc = `../books/${bookId}/audios/_meta/author.mp3`;
+      const effectiveLineNumbers = this.resolvePostShowLineAnnouncementNumbers(page, line, requestedLine);
+      const pageSequenceSources = this.buildNumberAudioSequence(page);
+      const lineSequenceSources = this.buildAnnouncementNumberSources(effectiveLineNumbers);
+      const pageSequenceLog = this.describeAnnouncementNumberSequence([page]);
+      const lineSequenceLog = this.describeAnnouncementNumberSequence(effectiveLineNumbers);
 
       return [
         { type: "pause", ms: 750, label: "pause:classic-postshow" },
@@ -280,18 +286,90 @@
         { type: "pause", ms: 350, label: "pause:postshow-title-author" },
         { type: "audio", src: authorSrc, label: "[AUDIO] Post-show -> author" },
         { type: "pause", ms: 350, label: "pause:postshow-author-page" },
-        { type: "audio", src: this.buildNumberAudioSrc(page), label: `[AUDIO] Post-show -> page ${pageSlug}` },
+        { type: "audio", src: "../audios/audios_especiales/pagina.mp3", label: "[AUDIO] Post-show -> Página" },
+        { type: "pause", ms: 0, label: `[AUDIO] Post-show -> page sequence: ${pageSequenceLog}` },
+        ...this.buildAudioItemsFromSources(pageSequenceSources, `postshow:page:${pageSlug}`),
         { type: "pause", ms: 350, label: "pause:postshow-page-line" },
-        { type: "audio", src: this.buildNumberAudioSrc(line), label: `[AUDIO] Post-show -> line ${lineSlug}` },
+        { type: "audio", src: "../audios/audios_especiales/renglon.mp3", label: "[AUDIO] Post-show -> Renglón" },
+        { type: "pause", ms: 0, label: `[AUDIO] Post-show -> line sequence: ${lineSequenceLog}` },
+        ...this.buildAudioItemsFromSources(lineSequenceSources, `postshow:line:${lineSlug}`),
         { type: "pause", ms: 350, label: "pause:postshow-line-repeat-page" },
-        { type: "audio", src: this.buildNumberAudioSrc(page), label: `[AUDIO] Post-show -> repeat page ${pageSlug}` },
+        { type: "audio", src: "../audios/audios_especiales/pagina.mp3", label: "[AUDIO] Post-show -> repeat Página" },
+        ...this.buildAudioItemsFromSources(pageSequenceSources, `postshow:repeat-page:${pageSlug}`),
         { type: "pause", ms: 350, label: "pause:postshow-repeat-page-line" },
-        { type: "audio", src: this.buildNumberAudioSrc(line), label: `[AUDIO] Post-show -> repeat line ${lineSlug}` },
+        { type: "audio", src: "../audios/audios_especiales/renglon.mp3", label: "[AUDIO] Post-show -> repeat Renglón" },
+        ...this.buildAudioItemsFromSources(lineSequenceSources, `postshow:repeat-line:${lineSlug}`),
       ];
     }
 
-    buildNumberAudioSrc(value) {
-      return `../audios/suma/${Number(value)}.mp3`;
+    buildAudioItemsFromSources(sources, labelPrefix) {
+      return sources.map((src, index) => ({
+        type: "audio",
+        src,
+        label: `${labelPrefix}:${index + 1}`,
+      }));
+    }
+
+    resolvePostShowLineAnnouncementNumbers(page, effectiveLine, requestedLine) {
+      if (page === 9 && requestedLine === 17 && effectiveLine === 16) {
+        this.log("INFO", "[AUDIO] Page 009 line 017 remapeada a 016 para anuncio final");
+        return [16, 17];
+      }
+      return [effectiveLine];
+    }
+
+    describeAnnouncementNumberSequence(values) {
+      const tokens = values.flatMap(value => this.buildNumberAudioTokens(value));
+      return tokens.join(" + ");
+    }
+
+    buildAnnouncementNumberSources(values) {
+      return values.flatMap(value => this.buildNumberAudioSequence(value));
+    }
+
+    buildNumberAudioSequence(value) {
+      const tokens = this.buildNumberAudioTokens(value);
+      return tokens.map(token => `../audios/suma/${token}.mp3`);
+    }
+
+    buildNumberAudioTokens(value) {
+      const number = Number(value);
+      if (!Number.isInteger(number) || number < 0) {
+        return ["0"];
+      }
+
+      if (number <= 15) {
+        return [String(number)];
+      }
+
+      if (number < 20) {
+        return ["10", `y${number - 10}`];
+      }
+
+      if (number < 100) {
+        const tens = Math.floor(number / 10) * 10;
+        const units = number % 10;
+        return units === 0
+          ? [String(tens)]
+          : [String(tens), `y${units}`];
+      }
+
+      if (number === 100) {
+        return ["100"];
+      }
+
+      if (number < 200) {
+        const remainder = number % 100;
+        return remainder === 0
+          ? ["100"]
+          : ["ciento", ...this.buildNumberAudioTokens(remainder)];
+      }
+
+      if (number < 400 && number % 100 === 0) {
+        return [String(number)];
+      }
+
+      return [String(number)];
     }
     
     stop(reason = "Audio detenido manualmente.", options = {}) {
