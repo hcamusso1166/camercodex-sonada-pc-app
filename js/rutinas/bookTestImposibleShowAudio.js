@@ -139,10 +139,12 @@
       const base = `../books/${bookId}/audios/page-${pageSlug}`;
 
       if (page === 9 && line === 16) {
+        this.log("INFO", "[AUDIO] Page 009 line 016 -> clásico extendido (p1+p2+p3+p4)");
         return {
           p1: `${base}/line-016_p1.mp3`,
           p2: `${base}/line-016_p2.mp3`,
-          p3: `${base}/line-017_p1.mp3`,
+          p3: `${base}/line-016_p3.mp3`,
+          p4: `${base}/line-017_p1.mp3`,
         };
       }
 
@@ -183,32 +185,51 @@
 
     normalizeClassicLine(page, line) {
       if (page === 9 && line === 17) {
-        this.log("INFO", "[AUDIO] Page 009 line 017 remapeada a line 016 (cola no seleccionable)");
+        this.log("INFO", "[AUDIO] Page 009 line 017 remapeada a 016");
         return 16;
       }
       return line;
     }
-    
+
     buildClassicQueueFromTakes(takes) {
       const pacing = this.classicPacing;
+      const hasP4 = Boolean(takes.p4);
       return [
         { type: "audio", src: takes.p1, label: "Take 1 / p1" },
         { type: "pause", ms: pacing.PAUSE_SHORT_MS, label: "pause:t1:p1-p2" },
         { type: "audio", src: takes.p2, label: "Take 1 / p2" },
         { type: "pause", ms: pacing.PAUSE_SHORT_MS, label: "pause:t1:p2-p3" },
         { type: "audio", src: takes.p3, label: "Take 1 / p3" },
+                ...(hasP4
+          ? [
+            { type: "pause", ms: pacing.PAUSE_SHORT_MS, label: "pause:t1:p3-p4" },
+            { type: "audio", src: takes.p4, label: "Take 1 / p4" },
+          ]
+          : []),
         { type: "pause", ms: pacing.BETWEEN_TAKE_1_2_MS, label: "pause:t1-t2" },
         { type: "audio", src: takes.p1, label: "Take 2 / p1" },
         { type: "pause", ms: pacing.PAUSE_MEDIUM_MS, label: "pause:t2:p1-p2" },
         { type: "audio", src: takes.p2, label: "Take 2 / p2" },
         { type: "pause", ms: pacing.PAUSE_MEDIUM_MS, label: "pause:t2:p2-p3" },
         { type: "audio", src: takes.p3, label: "Take 2 / p3" },
+        ...(hasP4
+          ? [
+            { type: "pause", ms: pacing.PAUSE_MEDIUM_MS, label: "pause:t2:p3-p4" },
+            { type: "audio", src: takes.p4, label: "Take 2 / p4" },
+          ]
+          : []),
         { type: "pause", ms: pacing.BETWEEN_TAKE_2_3_MS, label: "pause:t2-t3" },
         { type: "audio", src: takes.p1, label: "Take 3 / p1" },
         { type: "pause", ms: pacing.PAUSE_MEDIUM_MS, label: "pause:t3:p1-p2" },
         { type: "audio", src: takes.p2, label: "Take 3 / p2" },
         { type: "pause", ms: pacing.PAUSE_LONG_MS, label: "pause:t3:p2-p3" },
         { type: "audio", src: takes.p3, label: "Take 3 / p3" },
+        ...(hasP4
+          ? [
+            { type: "pause", ms: pacing.PAUSE_LONG_MS, label: "pause:t3:p3-p4" },
+            { type: "audio", src: takes.p4, label: "Take 3 / p4" },
+          ]
+          : []),
       ];
     }
 

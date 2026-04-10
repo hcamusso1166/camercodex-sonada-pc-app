@@ -336,7 +336,7 @@ async function resolveSelection(book, page, line) {
 
 function normalizeShowSelectionLine(page, line) {
   if (page === 9 && line === 17) {
-    logInfo("[AUDIO] Page 009 line 017 remapeada a line 016 (cola no seleccionable)", "AUDIO");
+    logInfo("[AUDIO] Page 009 line 017 remapeada a 016", "AUDIO");
     return 16;
   }
   return line;
