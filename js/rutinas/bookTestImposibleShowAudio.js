@@ -88,7 +88,9 @@
         if (typeof item.label === "string" && item.label.startsWith("Take ")) {
           this.log("INFO", `[AUDIO] ${item.label}`);
         }
-
+        if (Number.isInteger(item.takeIndex) && Number.isInteger(item.partIndex) && item.src) {
+          this.log("INFO", `[AUDIO] Take ${item.takeIndex} / part ${item.partIndex} => ${item.src}`);
+        }
         try {
           if (item.type === "pause") {
             await this.waitItem(item.ms, token);
@@ -169,7 +171,9 @@
       const effectiveLine = this.normalizeClassicLine(page, line);
       const takes = this.getClassicTakeUrls(bookId, page, effectiveLine);
       const queue = this.buildClassicQueueFromTakes(takes);
+      this.resetClassicPlaybackState();
       this.setQueue(queue, { label: `classic:${bookId}:page-${this.pad3(page)}:line-${this.pad3(effectiveLine)}` });
+      
 
       this.log("INFO", `[AUDIO] Preparando clásico page=${this.pad3(page)} line=${this.pad3(effectiveLine)}`);
       try {
@@ -180,6 +184,29 @@
       } catch (error) {
         this.log("ERROR", `[AUDIO][ERROR] ${error.message}`);
         this.stop("Audio clásico abortado por error.");
+      }
+    }
+
+    resetClassicPlaybackState() {
+      this.playToken += 1;
+      this.isPlaying = false;
+      this.queue = [];
+      if (this.currentTimeoutId) {
+        clearTimeout(this.currentTimeoutId);
+        this.currentTimeoutId = null;
+      }
+      if (this.currentAudioCleanup) {
+        this.currentAudioCleanup();
+        this.currentAudioCleanup = null;
+      }
+      if (this.currentAudio) {
+        try {
+          this.currentAudio.pause();
+          this.currentAudio.currentTime = 0;
+        } catch (error) {
+          // no-op: reset debe ser silencioso/idempotente
+        }
+        this.currentAudio = null;
       }
     }
 
@@ -200,7 +227,7 @@
         { type: "audio", src: takes.p2, label: "Take 1 / p2" },
         { type: "pause", ms: pacing.PAUSE_SHORT_MS, label: "pause:t1:p2-p3" },
         { type: "audio", src: takes.p3, label: "Take 1 / p3" },
-                ...(hasP4
+        ...(hasP4
           ? [
             { type: "pause", ms: pacing.PAUSE_SHORT_MS, label: "pause:t1:p3-p4" },
             { type: "audio", src: takes.p4, label: "Take 1 / p4" },
@@ -226,7 +253,6 @@
         { type: "audio", src: takes.p3, label: "Take 3 / p3" },
         ...(hasP4
           ? [
-            { type: "pause", ms: pacing.PAUSE_LONG_MS, label: "pause:t3:p3-p4" },
             { type: "audio", src: takes.p4, label: "Take 3 / p4" },
           ]
           : []),
@@ -282,6 +308,8 @@
           type: "audio",
           src: item.src,
           label: item.label || item.src,
+          takeIndex: Number.isInteger(item.takeIndex) ? item.takeIndex : undefined,
+          partIndex: Number.isInteger(item.partIndex) ? item.partIndex : undefined,
         };
       }
 
@@ -302,6 +330,8 @@
           type: "audio",
           src: item.src,
           label: item.label || item.src,
+          takeIndex: Number.isInteger(item.takeIndex) ? item.takeIndex : undefined,
+          partIndex: Number.isInteger(item.partIndex) ? item.partIndex : undefined,
         };
       }
 
