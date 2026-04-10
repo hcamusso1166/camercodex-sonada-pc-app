@@ -217,12 +217,7 @@ async function handleSelectionEvent(event) {
     logInfo(`Selección resuelta para ${selection.book.bookId}.`, "DATA");
 
     if (selection.pageNumber === 9) {
-      const requestedLine = Number(
-        selection.lineNumber
-        ?? selection.selectedLine
-        ?? selection.line
-        ?? 0
-      );
+      const requestedLine = Number(event.line ?? selection.lineNumber ?? 0);
 
       let effectiveLine = requestedLine;
       if (selection.pageNumber === 9 || selection.page === 9) {
@@ -242,7 +237,7 @@ async function handleSelectionEvent(event) {
         return;
       }
 
-      await showAudio.playClassicLineAudio(selection.book.bookId, 9, effectiveLine);
+      await showAudio.playClassicLineAudio(selection.book.bookId, 9, requestedLine);
       return;
     }
 

@@ -88,6 +88,9 @@
         if (typeof item.label === "string" && item.label.startsWith("Take ")) {
           this.log("INFO", `[AUDIO] ${item.label}`);
         }
+        if (typeof item.label === "string" && item.label.startsWith("[AUDIO] Post-show ->")) {
+          this.log("INFO", item.label);
+        }
         if (Number.isInteger(item.takeIndex) && Number.isInteger(item.partIndex) && item.src) {
           this.log("INFO", `[AUDIO] Take ${item.takeIndex} / part ${item.partIndex} => ${item.src}`);
         }
@@ -170,12 +173,18 @@
 
       const effectiveLine = this.normalizeClassicLine(page, line);
       const takes = this.getClassicTakeUrls(bookId, page, effectiveLine);
-      const queue = this.buildClassicQueueFromTakes(takes);
+      const queue = [
+        ...this.buildClassicQueueFromTakes(takes),
+        ...this.buildPostShowQueue(bookId, page, effectiveLine),
+      ];
       this.resetClassicPlaybackState();
       this.setQueue(queue, { label: `classic:${bookId}:page-${this.pad3(page)}:line-${this.pad3(effectiveLine)}` });
       
 
       this.log("INFO", `[AUDIO] Preparando clásico page=${this.pad3(page)} line=${this.pad3(effectiveLine)}`);
+      if (line !== effectiveLine) {
+        this.log("INFO", `[AUDIO] Post-show anunciará line=${this.pad3(effectiveLine)} (requested=${this.pad3(line)} remapeado)`);
+      }
       try {
         await this.playQueue();
         if (this.status === "completed") {
@@ -259,6 +268,32 @@
       ];
     }
 
+    buildPostShowQueue(bookId, page, line) {
+      const pageSlug = this.pad3(page);
+      const lineSlug = this.pad3(line);
+      const titleSrc = `../books/${bookId}/audios/_meta/title.mp3`;
+      const authorSrc = `../books/${bookId}/audios/_meta/author.mp3`;
+
+      return [
+        { type: "pause", ms: 750, label: "pause:classic-postshow" },
+        { type: "audio", src: titleSrc, label: "[AUDIO] Post-show -> title" },
+        { type: "pause", ms: 350, label: "pause:postshow-title-author" },
+        { type: "audio", src: authorSrc, label: "[AUDIO] Post-show -> author" },
+        { type: "pause", ms: 350, label: "pause:postshow-author-page" },
+        { type: "audio", src: this.buildNumberAudioSrc(page), label: `[AUDIO] Post-show -> page ${pageSlug}` },
+        { type: "pause", ms: 350, label: "pause:postshow-page-line" },
+        { type: "audio", src: this.buildNumberAudioSrc(line), label: `[AUDIO] Post-show -> line ${lineSlug}` },
+        { type: "pause", ms: 350, label: "pause:postshow-line-repeat-page" },
+        { type: "audio", src: this.buildNumberAudioSrc(page), label: `[AUDIO] Post-show -> repeat page ${pageSlug}` },
+        { type: "pause", ms: 350, label: "pause:postshow-repeat-page-line" },
+        { type: "audio", src: this.buildNumberAudioSrc(line), label: `[AUDIO] Post-show -> repeat line ${lineSlug}` },
+      ];
+    }
+
+    buildNumberAudioSrc(value) {
+      return `../audios/suma/${Number(value)}.mp3`;
+    }
+    
     stop(reason = "Audio detenido manualmente.", options = {}) {
       const shouldForceStoppedState = options.emitStoppedState === true;
       this.playToken += 1;
