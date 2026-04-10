@@ -216,8 +216,33 @@ async function handleSelectionEvent(event) {
     updatePayloadStatus(`Selección resuelta: pág ${selection.pageNumber}, línea ${selection.lineNumber}.`, false);
     logInfo(`Selección resuelta para ${selection.book.bookId}.`, "DATA");
 
-        if (selection.pageNumber === 9) {
-      await showAudio.playClassicLineAudio(selection.book.bookId, selection.pageNumber, selection.lineNumber);
+    if (selection.pageNumber === 9) {
+      const requestedLine = Number(
+        selection.lineNumber
+        ?? selection.selectedLine
+        ?? selection.line
+        ?? 0
+      );
+
+      let effectiveLine = requestedLine;
+      if (selection.pageNumber === 9 || selection.page === 9) {
+        if (effectiveLine === 17) {
+          logInfo("[AUDIO] Page 009 line 017 remapeada a line 016 (cola no seleccionable)", "AUDIO");
+          effectiveLine = 16;
+        }
+      }
+
+      logInfo(
+        `[AUDIO] Disparo clásico Page 009 -> requestedLine=${requestedLine}, effectiveLine=${effectiveLine}`,
+        "AUDIO"
+      );
+
+      if (!Number.isInteger(effectiveLine) || effectiveLine < 1) {
+        logError(`[AUDIO] Línea inválida para clásico Page 009: ${effectiveLine}`, "AUDIO");
+        return;
+      }
+
+      await showAudio.playClassicLineAudio(selection.book.bookId, 9, effectiveLine);
       return;
     }
 
@@ -298,7 +323,7 @@ async function resolveSelection(book, page, line) {
   return {
     book,
     pageNumber: page,
-    ineNumber: normalizedLine,
+    lineNumber: normalizedLine,
     selectedLine: sayLines[lineIndex],
     sayLines,
     windowLines,
