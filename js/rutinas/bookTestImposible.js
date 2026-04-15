@@ -3,6 +3,9 @@ const BOOK_DATA = {
   indexPath: "../books/index.json",
 };
 
+const MAX_LINE_NUMBER = 20;
+const MAX_LINE_CARD_SUM = 19;
+
 const routineState = {
   books: [],
   currentBook: null,
@@ -216,37 +219,12 @@ async function handleSelectionEvent(event) {
     updatePayloadStatus(`Selección resuelta: pág ${selection.pageNumber}, línea ${selection.lineNumber}.`, false);
     logInfo(`Selección resuelta para ${selection.book.bookId}.`, "DATA");
 
-    if (selection.pageNumber === 9) {
-      const requestedLine = Number(event.line ?? selection.lineNumber ?? 0);
-
-      let effectiveLine = requestedLine;
-      if (selection.pageNumber === 9 || selection.page === 9) {
-        if (effectiveLine === 17) {
-          logInfo("[AUDIO] Page 009 line 017 remapeada a line 016 (cola no seleccionable)", "AUDIO");
-          effectiveLine = 16;
-        }
-      }
-
-      logInfo(
-        `[AUDIO] Disparo clásico Page 009 -> requestedLine=${requestedLine}, effectiveLine=${effectiveLine}`,
-        "AUDIO"
-      );
-
-      if (!Number.isInteger(effectiveLine) || effectiveLine < 1) {
-        logError(`[AUDIO] Línea inválida para clásico Page 009: ${effectiveLine}`, "AUDIO");
-        return;
-      }
-
-      await showAudio.playClassicLineAudio(selection.book.bookId, 9, requestedLine);
+    const requestedLine = Number(event.line ?? selection.lineNumber ?? 0);
+    if (!Number.isInteger(requestedLine) || requestedLine <= 0 || requestedLine > MAX_LINE_NUMBER) {
+      logError(`[AUDIO] Línea inválida para show-time: ${requestedLine}. Rango permitido 1..${MAX_LINE_NUMBER}.`, "AUDIO");
       return;
     }
-
-    const queueResult = await buildShowAudioQueue(selection);
-    showAudio.setQueue(queueResult.queue, { label: `tpSeq ${event.tpSeq}` });
-    queueResult.warnings.forEach(warning => logInfo(warning, "AUDIO"));
-    if (queueResult.queue.length) {
-      await showAudio.playQueue();
-    }
+    await showAudio.playClassicLineAudio(selection.book.bookId, selection.pageNumber, requestedLine);
   } catch (error) {
     updatePayloadStatus(error.message, true);
     logError(error.message, "DATA");
@@ -281,6 +259,15 @@ async function resolveSelection(book, page, line) {
   }
   if (!Number.isInteger(line) || line <= 0) {
     throw new Error(`Renglón inválido recibido: ${line}.`);
+  }
+if (line > MAX_LINE_NUMBER) {
+    throw new Error(`Renglón inválido recibido: ${line}. Máximo soportado ${MAX_LINE_NUMBER}.`);
+  }
+  if (line > MAX_LINE_CARD_SUM) {
+    logInfo(
+      `Renglón ${line} por encima de suma de cartas (${MAX_LINE_CARD_SUM}); permitido por capacidad extendida hasta ${MAX_LINE_NUMBER}.`,
+      "DATA"
+    );
   }
 
   const pagePath = buildPagePath(book, page);
@@ -330,10 +317,7 @@ async function resolveSelection(book, page, line) {
 }
 
 function normalizeShowSelectionLine(page, line) {
-  if (page === 9 && line === 17) {
-    logInfo("[AUDIO] Page 009 line 017 remapeada a 016", "AUDIO");
-    return 16;
-  }
+  void page;
   return line;
 }
 
