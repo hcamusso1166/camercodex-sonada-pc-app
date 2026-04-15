@@ -175,7 +175,7 @@
       const takes = this.getClassicTakeUrls(bookId, page, effectiveLine);
       const queue = [
         ...this.buildClassicQueueFromTakes(takes),
-        ...this.buildPostShowQueue(bookId, page, effectiveLine),
+        ...this.buildPostShowQueue(bookId, page, effectiveLine, { requestedLine: line }),
       ];
       this.resetClassicPlaybackState();
       this.setQueue(queue, { label: `classic:${bookId}:page-${this.pad3(page)}:line-${this.pad3(effectiveLine)}` });
@@ -274,11 +274,11 @@
       const requestedLine = Number.isInteger(options.requestedLine) ? options.requestedLine : line;
       const titleSrc = `../books/${bookId}/audios/_meta/title.mp3`;
       const authorSrc = `../books/${bookId}/audios/_meta/author.mp3`;
-      const effectiveLineNumbers = this.resolvePostShowLineAnnouncementNumbers(page, line, requestedLine);
       const pageSequenceSources = this.buildNumberAudioSequence(page);
-      const lineSequenceSources = this.buildAnnouncementNumberSources(effectiveLineNumbers);
+      const lineAnnouncement = this.buildPostShowLineAnnouncement(bookId, page, line, requestedLine);
+      const lineSequenceSources = lineAnnouncement.sources;
       const pageSequenceLog = this.describeAnnouncementNumberSequence([page]);
-      const lineSequenceLog = this.describeAnnouncementNumberSequence(effectiveLineNumbers);
+      const lineSequenceLog = lineAnnouncement.log;
 
       return [
         { type: "pause", ms: 750, label: "pause:classic-postshow" },
@@ -310,12 +310,22 @@
       }));
     }
 
-    resolvePostShowLineAnnouncementNumbers(page, effectiveLine, requestedLine) {
-      if (page === 9 && requestedLine === 17 && effectiveLine === 16) {
-        this.log("INFO", "[AUDIO] Page 009 line 017 remapeada a 016 para anuncio final");
-        return [16, 17];
+    buildPostShowLineAnnouncement(bookId, page, effectiveLine, requestedLine) {
+      if (bookId === "narnia-el-sobrino-del-mago" && page === 9 && requestedLine === 17 && effectiveLine === 16) {
+        this.log("INFO", "[AUDIO] Anuncio final especial Page 009: Renglón 17 y 16");
+        return {
+          sources: [
+            ...this.buildNumberAudioSequence(17),
+            "../audios/poker/y.mp3",
+            ...this.buildNumberAudioSequence(16),
+          ],
+          log: "17 + y + 16",
+        };
       }
-      return [effectiveLine];
+      return {
+        sources: this.buildAnnouncementNumberSources([effectiveLine]),
+        log: this.describeAnnouncementNumberSequence([effectiveLine]),
+      };
     }
 
     describeAnnouncementNumberSequence(values) {
