@@ -25,36 +25,42 @@
       };
     }
 
-    resolveReadingCase(bookId, page, line) {
-      const isSpecialBook = bookId === "narnia-el-sobrino-del-mago";
-      const isSpecialPage9 = isSpecialBook && page === 9;
-
-      if (isSpecialPage9 && line === 16) {
-        this.log("INFO", "[AUDIO] Caso especial contenido: Page 009 line 016 extendida con continuidad en 017.");
-        return {
-          mode: "special-page9-line16",
-          effectiveLine: 16,
-          announcedLine: 16,
-          useExtendedContent: true,
-        };
-      }
-
-      if (isSpecialPage9 && line === 17) {
-        this.log("INFO", "[AUDIO] Caso especial contenido: Page 009 line 017 remapeada a bloque 016+continuidad.");
-        return {
-          mode: "special-page9-line17",
-          effectiveLine: 16,
-          announcedLine: "17 y 16",
-          useExtendedContent: true,
-        };
-      }
-
-      return {
-        mode: "normal",
-        effectiveLine: line,
-        announcedLine: line,
-        useExtendedContent: false,
+    resolveReadingContext(bookId, pageNumber, selectedLineNumber) {
+      const ctx = {
+        bookId,
+        pageNumber,
+        selectedLineNumber,
+        playbackLineNumber: selectedLineNumber,
+        tpStartLineNumber: selectedLineNumber,
+        classicMode: "normal",
+        lineAnnouncementMode: "single",
+        lineAnnouncementNumbers: [selectedLineNumber],
       };
+
+      const isSpecialBook = bookId === "narnia-el-sobrino-del-mago";
+      const isSpecialPage9 = isSpecialBook && pageNumber === 9;
+
+      if (isSpecialPage9 && selectedLineNumber === 16) {
+        this.log("INFO", "[AUDIO] Caso especial contenido: Page 009 line 016 extendida con continuidad en 017.");
+        ctx.playbackLineNumber = 16;
+        ctx.tpStartLineNumber = 16;
+        ctx.classicMode = "extend-next-line";
+        ctx.lineAnnouncementMode = "single";
+        ctx.lineAnnouncementNumbers = [16];
+        return ctx;
+      }
+
+      if (isSpecialPage9 && selectedLineNumber === 17) {
+        this.log("INFO", "[AUDIO] Caso especial contenido: Page 009 line 017 remapeada a bloque 016+continuidad.");
+        ctx.playbackLineNumber = 16;
+        ctx.tpStartLineNumber = 16;
+        ctx.classicMode = "extend-next-line";
+        ctx.lineAnnouncementMode = "pair";
+        ctx.lineAnnouncementNumbers = [17, 16];
+        return ctx;
+      }
+
+      return ctx;
     }
 
     enableFromUserGesture() {
@@ -170,12 +176,12 @@
       await this.playQueue(this.lastPlayableQueue.map(item => ({ ...item })));
     }
 
-    getClassicTakeUrls(bookId, page, resolvedCase) {
-      const pageSlug = this.pad3(page);
-      const lineSlug = this.pad3(resolvedCase.effectiveLine);
-      const base = `../books/${bookId}/audios/page-${pageSlug}`;
+    getClassicTakeUrls(context) {
+      const pageSlug = this.pad3(context.pageNumber);
+      const lineSlug = this.pad3(context.playbackLineNumber);
+      const base = `../books/${context.bookId}/audios/page-${pageSlug}`;
 
-      if (resolvedCase.useExtendedContent) {
+      if (context.classicMode === "extend-next-line") {
         this.log("INFO", "[AUDIO] Page 009 line 016 -> clásico extendido (p1+p2+p3+p4)");
         return {
           p1: `${base}/line-016_p1.mp3`,
@@ -198,22 +204,22 @@
         return;
       }
 
-      const resolvedCase = this.resolveReadingCase(bookId, page, line);
-      const takes = this.getClassicTakeUrls(bookId, page, resolvedCase);
+      const context = this.resolveReadingContext(bookId, page, line);
+      const takes = this.getClassicTakeUrls(context);
       const queue = [
-        ...this.buildClassicQueueFromTakes(takes),
-        ...this.buildPostShowQueue(bookId, page, resolvedCase),
+        ...this.playClassicReadingThreeTakes(context, takes),
+        ...this.buildPostShowQueue(context),
       ];
       this.resetClassicPlaybackState();
-      his.setQueue(queue, { label: `classic:${bookId}:page-${this.pad3(page)}:line-${this.pad3(resolvedCase.effectiveLine)}` });
+      this.setQueue(queue, { label: `classic:${bookId}:page-${this.pad3(page)}:line-${this.pad3(context.playbackLineNumber)}` });
       
 
-      this.log(
+       this.log(
         "INFO",
-        `[AUDIO] Preparando show-time general page=${this.pad3(page)} requestedLine=${this.pad3(line)} effectiveLine=${this.pad3(resolvedCase.effectiveLine)} mode=${resolvedCase.mode}`
+        `[AUDIO] Preparando show-time general page=${this.pad3(page)} selectedLine=${this.pad3(line)} playbackLine=${this.pad3(context.playbackLineNumber)} mode=${context.classicMode}`
       );
-      if (resolvedCase.announcedLine !== resolvedCase.effectiveLine) {
-        this.log("INFO", `[AUDIO] Post-show anunciará línea especial '${resolvedCase.announcedLine}'.`);
+      if (context.lineAnnouncementMode === "pair") {
+        this.log("INFO", "[AUDIO] Post-show anunciará línea especial compuesta: 17 y 16.");
       }
       try {
         await this.playQueue();
@@ -290,15 +296,20 @@
       ];
     }
 
-    buildPostShowQueue(bookId, page, resolvedCase) {
-      const pageSlug = this.pad3(page);
-      const lineSlug = this.pad3(resolvedCase.effectiveLine);
-      const titleSrc = `../books/${bookId}/audios/_meta/title.mp3`;
-      const authorSrc = `../books/${bookId}/audios/_meta/author.mp3`;
-      const pageSequenceSources = this.buildNumberAudioSequence(page);
-      const lineAnnouncement = this.buildPostShowLineAnnouncement(resolvedCase);
+    playClassicReadingThreeTakes(context, takes) {
+      void context;
+      return this.buildClassicQueueFromTakes(takes);
+    }
+
+    buildPostShowQueue(context) {
+      const pageSlug = this.pad3(context.pageNumber);
+      const lineSlug = this.pad3(context.playbackLineNumber);
+      const titleSrc = `../books/${context.bookId}/audios/_meta/title.mp3`;
+      const authorSrc = `../books/${context.bookId}/audios/_meta/author.mp3`;
+      const pageSequenceSources = this.buildNumberAudioSequence(context.pageNumber);
+      const lineAnnouncement = this.buildLineAnnouncement(context);
       const lineSequenceSources = lineAnnouncement.sources;
-      const pageSequenceLog = this.describeAnnouncementNumberSequence([page]);
+      const pageSequenceLog = this.describeAnnouncementNumberSequence([context.pageNumber]);
       const lineSequenceLog = lineAnnouncement.log;
 
       return [
@@ -331,30 +342,35 @@
       }));
     }
 
-    buildPostShowLineAnnouncement(resolvedCase) {
-      if (resolvedCase.mode === "special-page9-line17") {
+    buildLineAnnouncement(context) {
+      if (context.lineAnnouncementMode === "single") {
+        const [lineNumber] = context.lineAnnouncementNumbers;
+        return {
+          sources: this.buildAnnouncementNumberSources([lineNumber]),
+          log: this.describeAnnouncementNumberSequence([lineNumber]),
+        };
+      }
+
+      if (context.lineAnnouncementMode === "pair") {
+        const [firstLine, secondLine] = context.lineAnnouncementNumbers;
         this.log("INFO", "[AUDIO] Anuncio final especial: Renglón 17 y 16");
-        return {
-          sources: [
-            ...this.buildNumberAudioSequence(17),
-            "../audios/poker/y.mp3",
-            ...this.buildNumberAudioSequence(16),
-          ],
-          log: "17 + y + 16",
-        };
-      }
-      if (typeof resolvedCase.announcedLine === "number") {
-        return {
-          sources: this.buildAnnouncementNumberSources([resolvedCase.announcedLine]),
-          log: this.describeAnnouncementNumberSequence([resolvedCase.announcedLine]),
-        };
-      }
       return {
-        sources: this.buildAnnouncementNumberSources([resolvedCase.effectiveLine]),
-        log: this.describeAnnouncementNumberSequence([resolvedCase.effectiveLine]),
+        sources: [
+          ...this.buildAnnouncementNumberSources([firstLine]),
+          "../audios/poker/y.mp3",
+          ...this.buildAnnouncementNumberSources([secondLine]),
+        ],
+        log: `${firstLine} + y + ${secondLine}`,
       };
     }
 
+    const fallbackLine = Number(context.playbackLineNumber) || 0;
+      return {
+        sources: this.buildAnnouncementNumberSources([fallbackLine]),
+        log: this.describeAnnouncementNumberSequence([fallbackLine]),
+      };
+    }
+    
     describeAnnouncementNumberSequence(values) {
       const tokens = values.flatMap(value => this.buildNumberAudioTokens(value));
       return tokens.join(" + ");
