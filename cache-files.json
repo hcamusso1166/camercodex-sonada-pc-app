@@ -324,5 +324,17 @@
   "/rutinas/tegMagico.html",
   "/rutinas/theboss.html",
   "/rutinas/voluntadPrestada.html",
-  "/rutinas/controlFrecuencia.html"
+  "/rutinas/controlFrecuencia.html",
+  "/info/rutinas/bookTestImposible.html",
+  "/js/rutinas/bookTestImposible.js",
+  "/js/rutinas/bookTestImposibleTpAdapter.js",
+  "/js/rutinas/bookTestImposibleCanonical.js",
+  "/js/rutinas/bookTestImposibleShowAudio.js",
+  "/rutinas/bookTestImposible.html",
+  "/info/rutinas/bookTestImposibleV2.html",
+  "/js/rutinas/bookTestImposibleV2.js",
+  "/js/rutinas/bookTestImposibleV2TpAdapter.js",
+  "/js/rutinas/bookTestImposibleV2Canonical.js",
+  "/js/rutinas/bookTestImposibleV2ShowAudio.js",
+  "/rutinas/bookTestImposibleV2.html"
 ]

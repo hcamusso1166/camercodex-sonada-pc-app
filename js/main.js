@@ -649,6 +649,10 @@ const ROUTINE_HELP_CONTENT = Object.freeze({
     title: "Book Test Imposible",
     file: "bookTestImposible.html"
   },
+  "bookTestImposibleV2.html": {
+    title: "BTI v2",
+    file: "bookTestImposibleV2.html"
+  },
   "coleccionista.html": {
     title: "Coleccionista",
     file: "coleccionista.html"
@@ -734,6 +738,7 @@ const ROUTINE_ANTENNA_TYPES = Object.freeze({
 const ROUTINE_ANTENNA_POLICIES = Object.freeze({
   "lecturaQ.html": ROUTINE_ANTENNA_TYPES.SECONDARY_ONLY,
   "bookTestImposible.html": ROUTINE_ANTENNA_TYPES.ALL,
+  "bookTestImposibleV2.html": ROUTINE_ANTENNA_TYPES.ALL,
   // Agregar aquí rutinas adicionales cuando necesiten soportar otras antenas
 });
 
@@ -848,7 +853,7 @@ let camerAntennaId  = 0;
 let camerFlags      = 0;
 let camerSeq        = 0;
 
-const isBookTestImposibleView = currentView === "bookTestImposible.html";
+const isBookTestImposibleView = currentView === "bookTestImposible.html" || currentView === "bookTestImposibleV2.html";
 const characteristicDeviceMap = new WeakMap();
 const bookTestConnections = [];
 
@@ -1232,7 +1237,12 @@ const len = dataView.byteLength;
       registrarLecturaQ({ mvalor, antennaId: camerAntennaId });
       break;
     case "bookTestImposible.html":
-      registrarBookTestImposible({ mvalor, antennaId: camerAntennaId });
+      case "bookTestImposibleV2.html":
+      // BTI v2 arranca como copia funcional de Book Test Imposible y conserva
+      // el mismo flujo BLE hasta que se definan los nuevos servicios.
+      if (typeof registrarBookTestImposible === "function") {
+        registrarBookTestImposible({ mvalor, antennaId: camerAntennaId });
+      }
       break;
     default:
       break;
@@ -1274,6 +1284,7 @@ const len = dataView.byteLength;
         // La vista específica de LecturaQ se gestiona desde su rutina dedicada.
         break;
       case "bookTestImposible.html":
+      case "bookTestImposibleV2.html":
         // La vista específica se gestiona desde su rutina dedicada.
         break;
       default:
