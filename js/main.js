@@ -853,7 +853,9 @@ let camerAntennaId  = 0;
 let camerFlags      = 0;
 let camerSeq        = 0;
 
-const isBookTestImposibleView = currentView === "bookTestImposible.html" || currentView === "bookTestImposibleV2.html";
+const isBookTestImposibleLegacyView = currentView === "bookTestImposible.html";
+const isBookTestImposibleV2View = currentView === "bookTestImposibleV2.html";
+const isBookTestImposibleView = isBookTestImposibleLegacyView;
 const characteristicDeviceMap = new WeakMap();
 const bookTestConnections = [];
 
@@ -932,6 +934,9 @@ function limpiarDatos() {
   }
   if (typeof resetBookTestImposible === 'function') {
     resetBookTestImposible();
+  }
+  if (typeof resetBookTestImposibleV2 === 'function') {
+    resetBookTestImposibleV2();
   }
   console.log("Datos limpiados");
 }
@@ -1036,6 +1041,9 @@ actualizarIconoConexionBLE("conectado");
           bleStateContainer.style.color = "#24af37";
         }
         limpiarDatos();
+        if (isBookTestImposibleV2View && typeof setBookTestImposibleV2DeviceState === "function") {
+          setBookTestImposibleV2DeviceState("connected", device.name);
+        }
         actualizarAccion("Leer carta");
 
         const path = window.location.pathname;
@@ -1063,6 +1071,9 @@ actualizarIconoConexionBLE("conectado");
 
 function onDisconnected(event) {
   console.log('Device Disconnected.');
+  if (isBookTestImposibleV2View && typeof setBookTestImposibleV2DeviceState === "function") {
+    setBookTestImposibleV2DeviceState("disconnected");
+  }
   if (bleStateContainer) {
     bleStateContainer.innerHTML = "Desconectado";
     bleStateContainer.style.color = "#d13a30";
@@ -1237,13 +1248,24 @@ const len = dataView.byteLength;
       registrarLecturaQ({ mvalor, antennaId: camerAntennaId });
       break;
     case "bookTestImposible.html":
-      case "bookTestImposibleV2.html":
-      // BTI v2 arranca como copia funcional de Book Test Imposible y conserva
-      // el mismo flujo BLE hasta que se definan los nuevos servicios.
-      if (typeof registrarBookTestImposible === "function") {
+    if (typeof registrarBookTestImposible === "function") {
         registrarBookTestImposible({ mvalor, antennaId: camerAntennaId });
       }
       break;
+    case "bookTestImposibleV2.html":
+      if (typeof registrarBookTestImposibleV2 === "function") {
+        registrarBookTestImposibleV2({
+          valor,
+          mvalor,
+          color,
+          dorso,
+          antennaId: camerAntennaId,
+          eventType: camerEventType,
+          flags: camerFlags,
+          seq: camerSeq,
+        });
+      }
+      break;  
     default:
       break;
   }
@@ -1410,6 +1432,9 @@ if (isBookTestImposibleView) {
           if (bleStateContainer) {
             bleStateContainer.innerHTML = "Desconectado";
             bleStateContainer.style.color = "#d13a30";
+          }
+          if (isBookTestImposibleV2View && typeof setBookTestImposibleV2DeviceState === "function") {
+            setBookTestImposibleV2DeviceState("disconnected");
           }
           if (accionMagoMensaje) {
             accionMagoMensaje.textContent = "Conectar el dispositivo BLE";

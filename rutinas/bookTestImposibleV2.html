@@ -39,21 +39,22 @@
   <div class="card-grid single-column">
     <div class="card dark-card" id="routineHeaderCard">
       <h2>BTI v2</h2>
-      <p class="gray-label">Estado TP: <strong id="tpStatusLabel">TP no conectado</strong></p>
+      <p class="gray-label">Estado MrCamerDev1.0: <strong id="deviceStatusLabel">No conectado</strong></p>
       <p class="gray-label">Estado audio: <strong id="audioStatusLabel">detenido</strong></p>
       <div class="button-row">
-        <button id="startShowButton" class="button-primary">Iniciar show / conectar TP</button>
+        <button id="connectBleButton" class="button-primary connectButton">Conectar MrCamerDev1.0</button>
+        <button id="disconnectBleButton" class="button-secondary disconnectButton">Desconectar</button>
         <button id="replayAudioButton" class="button-secondary">Replay</button>
         <button id="stopAudioButton" class="button-secondary">Stop</button>
       </div>
-      <p class="gray-label" id="payloadStatus">Esperando inicio de show.</p>
+      <p class="gray-label" id="payloadStatus">Conectá MrCamerDev1.0 y acercá el payload del libro.</p>
     </div>
 
     <div class="card dark-card" id="resolvedDataCard">
       <h2>Datos resueltos</h2>
       <p><strong>Libro:</strong> <span id="resolvedBookTitle">—</span></p>
       <p><strong>Autor:</strong> <span id="resolvedBookAuthor">—</span></p>
-      <p><strong>Código TP:</strong> <span id="resolvedBookCode">—</span></p>
+      <p><strong>Código libro:</strong> <span id="resolvedBookCode">—</span></p>
       <p><strong>Página:</strong> <span id="resolvedPage">—</span></p>
       <p><strong>Renglón:</strong> <span id="resolvedLine">—</span></p>
       <p><strong>pageHash:</strong> <span id="resolvedPageHash">—</span></p>
@@ -83,10 +84,8 @@
 
 <script src="../js/config.js"></script>
 <script src="../js/main.js"></script>
-<script src="../js/rutinas/bookTestImposibleV2TpAdapter.js"></script>
 <script src="../js/rutinas/bookTestImposibleV2Canonical.js"></script>
 <script src="../js/rutinas/bookTestImposibleV2ShowAudio.js"></script>
 <script src="../js/rutinas/bookTestImposibleV2.js"></script>
 </body>
-</html>
 </html>

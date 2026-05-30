@@ -10,10 +10,10 @@ const routineState = {
   books: [],
   currentBook: null,
   currentSelection: null,
-  lastTpSeq: -1,
+  lastDeviceSeq: -1,
   logs: [],
-  tpConnected: false,
-  tpConnectionState: "disconnected",
+  deviceConnected: false,
+  deviceConnectionState: "disconnected",
   startShowButtonDefaultLabel: "",
 };
 
@@ -21,7 +21,7 @@ const ui = {
   startShowButton: null,
   replayAudioButton: null,
   stopAudioButton: null,
-  tpStatusLabel: null,
+  deviceStatusLabel: null,
   audioStatusLabel: null,
   payloadStatus: null,
   resolvedBookTitle: null,
@@ -36,7 +36,6 @@ const ui = {
   routineLog: null,
 };
 
-let tpAdapter;
 let showAudio;
 
 if (document.readyState === "loading") {
@@ -48,18 +47,18 @@ if (document.readyState === "loading") {
 async function initBookTestImposibleV2Routine() {
   bindUiElements();
   bindEvents();
-  setupAudioAndBle();
+  setupAudio();
   resetRoutineState();
   await preloadBooks();
-  logInfo("Rutina inicializada en modo show-time (esperando conexión TP).", "INIT");
+  logInfo("Rutina inicializada en modo móvil/audio (sin Teleprompter).", "INIT");
 }
 
 function bindUiElements() {
-  ui.startShowButton = document.getElementById("startShowButton");
-  routineState.startShowButtonDefaultLabel = ui.startShowButton?.textContent || "Iniciar show / conectar TP";
+  ui.startShowButton = document.getElementById("connectBleButton") || document.getElementById("startShowButton");
+  routineState.startShowButtonDefaultLabel = ui.startShowButton?.textContent || "Conectar MrCamerDev1.0";
   ui.replayAudioButton = document.getElementById("replayAudioButton");
   ui.stopAudioButton = document.getElementById("stopAudioButton");
-  ui.tpStatusLabel = document.getElementById("tpStatusLabel");
+  ui.deviceStatusLabel = document.getElementById("deviceStatusLabel") || document.getElementById("tpStatusLabel");
   ui.audioStatusLabel = document.getElementById("audioStatusLabel");
   ui.payloadStatus = document.getElementById("payloadStatus");
 
@@ -77,21 +76,15 @@ function bindUiElements() {
 }
 
 function bindEvents() {
-ui.startShowButton?.addEventListener("click", onStartShowClick);
+ui.startShowButton?.addEventListener("click", () => showAudio?.enableFromUserGesture());
   ui.replayAudioButton?.addEventListener("click", () => showAudio?.replay());
   ui.stopAudioButton?.addEventListener("click", () => showAudio?.stop("Audio detenido por operador."));
 }
 
-function setupAudioAndBle() {
+function setupAudio() {
   showAudio = new window.BookTestImposibleV2ShowAudio({
     onLog: appendLog,
     onStatus: renderAudioStatus,
-  });
-
-  tpAdapter = new window.BookTestImposibleV2TpAdapter({
-    onLog: appendLog,
-    onEvent: onTpEvent,
-    onDisconnected: onTpDisconnected,
   });
 }
 
@@ -107,119 +100,97 @@ async function preloadBooks() {
   }
 }
 
-async function onStartShowClick() {
-  if (routineState.tpConnectionState === "connected" || isTpAdapterConnected()) {
-    routineState.tpConnectionState = "connected";
-    logInfo("Conexión ignorada: TP ya conectado.", "BLE");
+function registrarBookTestImposibleV2(payload = {}) {
+  const normalizedPayload = normalizeDevicePayload(payload);
+
+  if (normalizedPayload.seq > 0 && normalizedPayload.seq <= routineState.lastDeviceSeq) {
+    logInfo(`Lectura ignorada por seq viejo (seq=${normalizedPayload.seq}, last=${routineState.lastDeviceSeq}).`, "EVENT");
+    return;
+  }
+  if (normalizedPayload.seq > 0) {
+    routineState.lastDeviceSeq = normalizedPayload.seq;
+  }
+
+  const payloadLabel = normalizedPayload.rawValue || normalizedPayload.bookCode || "—";
+  logInfo(
+    `Payload MrCamer recibido: ${JSON.stringify({ valor: payloadLabel, antennaId: normalizedPayload.antennaId, seq: normalizedPayload.seq })}`,
+    "BLE"
+  );
+
+  const explicitBookCode = normalizedPayload.bookCode;
+  const inferredBookCode = inferBookCodeFromPayload(normalizedPayload);
+  const bookCode = explicitBookCode || inferredBookCode;
+  const shouldTreatAsBook = normalizedPayload.page == null
+    && normalizedPayload.line == null
+    && (isPrimaryAntenna(normalizedPayload.antennaId) || !routineState.currentBook);
+
+  if (bookCode && shouldTreatAsBook) {
+    handleBookPayload(bookCode);
     return;
   }
 
-  if (routineState.tpConnectionState === "connecting") {
-    logInfo("Conexión ignorada: TP en proceso de conexión.", "BLE");
+const selectionPayload = parseSelectionPayload(normalizedPayload);
+  if (selectionPayload) {
+    if (selectionPayload.bookCode && (!routineState.currentBook || selectionPayload.bookCode !== bookCode)) {
+      handleBookPayload(selectionPayload.bookCode);
+    } else if (explicitBookCode && !routineState.currentBook) {
+      handleBookPayload(explicitBookCode);
+    }
+
+    handleDeviceSelectionEvent(selectionPayload);
     return;
   }
 
-  if (routineState.tpConnectionState !== "disconnected") {
+  if (bookCode) {
+    handleBookPayload(bookCode);
     return;
   }
 
-  try {
-    showAudio.enableFromUserGesture();
-    setTpConnectionState("connecting");
-    updatePayloadStatus("Conectando al TP...", false);
-    await tpAdapter.connect();
-    setTpConnectionState("connected");
-    routineState.tpConnected = true;
-    renderTpStatus("TP conectado");
-    updatePayloadStatus("Sesión show-time activa. Esperando eventos TP.", false);
-  } catch (error) {
-    setTpConnectionState("disconnected");
-    logError(`No se pudo iniciar show: ${error.message}`, "BLE");
-    renderTpStatus("TP no conectado");
-    updatePayloadStatus(error.message, true);
-  }
-}
-  
-function onTpDisconnected() {
-  setTpConnectionState("disconnected");
-  routineState.tpConnected = false;
-  showAudio?.stop("Audio detenido por desconexión TP.");
-  renderTpStatus("TP desconectado");
-  updatePayloadStatus("Conexión BLE cerrada. Selección previa conservada.", false);
-}
-
-async function onTpEvent(event) {
-  if (event.tpSeq <= routineState.lastTpSeq) {
-    logInfo(`Evento ignorado por tpSeq viejo (tpSeq=${event.tpSeq}, last=${routineState.lastTpSeq}).`, "EVENT");
-    return;
-  }
-
-  routineState.lastTpSeq = event.tpSeq;
-  logInfo(`Procesando ${event.msgTypeName} con tpSeq=${event.tpSeq}.`, "EVENT");
-
-  if (event.msgTypeName === "BOOK") {
-    handleBookEvent(event);
-    return;
-  }
-
-  if (event.msgTypeName === "SELECTION") {
-    await handleSelectionEvent(event);
-    return;
-  }
-
-  if (event.msgTypeName === "CLEARED") {
-    handleClearedEvent(event);
-    return;
-  }
-
-  if (event.msgTypeName === "SNAPSHOT") {
-    await handleSnapshotEvent(event);
-    return;
-  }
-
-  logInfo(`msgType no manejado: ${event.msgTypeName}.`, "EVENT");
+  const errorMessage = `Payload BTI v2 no reconocido: '${payloadLabel}'.`;
+  updatePayloadStatus(errorMessage, true);
+  logError(errorMessage, "BLE");
 }
 
-function handleBookEvent(event) {
-  const resolvedBook = resolveBookByTpCode(event.bookCode);
+function handleBookPayload(bookCode) {
+  const resolvedBook = resolveBookByDeviceCode(bookCode);
   routineState.currentBook = resolvedBook;
   routineState.currentSelection = null;
-  showAudio.stop("Audio cancelado por nuevo evento BOOK.");
+  showAudio.stop("Audio cancelado por nuevo libro.");
   showAudio.setQueue([], { label: "BOOK_RESET" });
 
   clearSelectionView();
 
   if (!resolvedBook) {
-    const errorMessage = `No se pudo mapear bookCode '${event.bookCode}'.`;
+    const errorMessage = `No se pudo mapear bookCode '${bookCode}'.`;
     updatePayloadStatus(errorMessage, true);
-    renderBookInfo(null, event.bookCode);
+    renderBookInfo(null, bookCode);
     logError(errorMessage, "MAP");
     return;
   }
 
-  renderBookInfo(resolvedBook, event.bookCode);
-  updatePayloadStatus(`Libro resuelto: ${resolvedBook.title}.`, false);
-  logInfo(`Libro resuelto para code '${event.bookCode}': ${resolvedBook.bookId}.`, "MAP");
+  renderBookInfo(resolvedBook, bookCode);
+  updatePayloadStatus(`Libro resuelto desde MrCamerDev1.0: ${resolvedBook.title}.`, false);
+  logInfo(`Libro resuelto para code '${bookCode}': ${resolvedBook.bookId}.`, "MAP");
 }
 
-async function handleSelectionEvent(event) {
-  showAudio.stop("Audio cancelado por nuevo evento SELECTION.");
+async function handleDeviceSelectionEvent(selectionPayload) {
+  showAudio.stop("Audio cancelado por nueva selección.");
 
   if (!routineState.currentBook) {
-    const errorMessage = "Llegó SELECTION pero no hay libro actual resuelto.";
+    const errorMessage = "Llegó selección pero no hay libro actual resuelto.";
     updatePayloadStatus(errorMessage, true);
     logError(errorMessage, "DATA");
     return;
   }
 
   try {
-    const selection = await resolveSelection(routineState.currentBook, event.page, event.line);
+    const selection = await resolveSelection(routineState.currentBook, selectionPayload.page, selectionPayload.line);
     routineState.currentSelection = selection;
     renderSelection(selection);
     updatePayloadStatus(`Selección resuelta: pág ${selection.pageNumber}, línea ${selection.lineNumber}.`, false);
     logInfo(`Selección resuelta para ${selection.book.bookId}.`, "DATA");
 
-    const requestedLine = Number(event.line ?? selection.lineNumber ?? 0);
+    const requestedLine = Number(selectionPayload.line ?? selection.lineNumber ?? 0);
     if (!Number.isInteger(requestedLine) || requestedLine <= 0 || requestedLine > MAX_LINE_NUMBER) {
       logError(`[AUDIO] Línea inválida para show-time: ${requestedLine}. Rango permitido 1..${MAX_LINE_NUMBER}.`, "AUDIO");
       return;
@@ -232,25 +203,89 @@ async function handleSelectionEvent(event) {
   }
 }
 
-async function handleSnapshotEvent(event) {
-  logInfo("SNAPSHOT recibido; sincronizando estado parcial disponible.", "EVENT");
+function normalizeDevicePayload(payload) {
+  const rawValue = String(payload.valor || payload.value || payload.rawValue || "").trim();
+  const mvalor = String(payload.mvalor || rawValue.slice(0, 2) || "").trim();
+  const color = payload.color != null ? String(payload.color).trim() : rawValue[2] || "";
+  const dorso = payload.dorso != null ? String(payload.dorso).trim() : rawValue[3] || "";
 
-  if (event.stateBits.bookValid && event.bookCode && event.bookCode !== "----") {
-    handleBookEvent(event);
-  }
-
-  if (event.stateBits.selectionValid && event.page > 0 && event.line > 0) {
-    await handleSelectionEvent(event);
-  }
+  return {
+    ...payload,
+    rawValue,
+    mvalor,
+    color,
+    dorso,
+    bookCode: payload.bookCode != null ? String(payload.bookCode).trim() : "",
+    page: toPositiveInteger(payload.page),
+    line: toPositiveInteger(payload.line || payload.renglon),
+    antennaId: toPositiveInteger(payload.antennaId),
+    seq: toPositiveInteger(payload.seq),
+  };
 }
 
-function handleClearedEvent(event) {
-  showAudio.stop("Audio cancelado por evento CLEARED.");
-  showAudio.setQueue([], { label: "CLEARED_RESET" });
-  routineState.currentSelection = null;
-  clearSelectionView();
-  updatePayloadStatus(`Selección limpiada por TP (tpSeq=${event.tpSeq}).`, false);
-  logInfo("Selección visual limpia tras CLEARED.", "EVENT");
+function inferBookCodeFromPayload(payload) {
+  const explicit = payload.bookCode || payload.mvalor || payload.rawValue;
+  if (!explicit) {
+    return "";
+  }
+  const digits = String(explicit).trim().match(/\d+/)?.[0] || "";
+  if (!digits) {
+    return String(explicit).trim();
+  }
+  return digits.padStart(2, "0").slice(-2);
+}
+
+function parseSelectionPayload(payload) {
+  if (payload.page != null && payload.line != null) {
+    return {
+      page: payload.page,
+      line: payload.line,
+      bookCode: payload.bookCode || "",
+    };
+  }
+
+  const raw = String(payload.rawValue || "").trim();
+  const compact = raw.replace(/[^0-9]/g, "");
+
+  if (/^\d{4}$/.test(compact)) {
+    return {
+      page: Number.parseInt(compact.slice(0, 2), 10),
+      line: Number.parseInt(compact.slice(2, 4), 10),
+      bookCode: payload.bookCode || "",
+    };
+  }
+
+  if (/^\d{5}$/.test(compact)) {
+    return {
+      page: Number.parseInt(compact.slice(0, 3), 10),
+      line: Number.parseInt(compact.slice(3, 5), 10),
+      bookCode: payload.bookCode || "",
+    };
+  }
+
+  const page = toPositiveInteger(payload.mvalor);
+  const line = toPositiveInteger(`${payload.color || ""}${payload.dorso || ""}`);
+  if (page != null && line != null) {
+    return {
+      page,
+      line,
+      bookCode: payload.bookCode || "",
+    };
+  }
+
+  return null;
+}
+
+function toPositiveInteger(value) {
+  if (value == null || value === "") {
+    return null;
+  }
+  const number = Number.parseInt(String(value).trim(), 10);
+  return Number.isInteger(number) && number > 0 ? number : null;
+}
+
+function isPrimaryAntenna(antennaId) {
+  return antennaId === 1 || antennaId === 9 || antennaId == null;
 }
 
 async function resolveSelection(book, page, line) {
@@ -505,8 +540,11 @@ async function resolveLocalLineTakes(bookId, page, line, assetExistsChecker) {
   return resolved;
 }
 
-function resolveBookByTpCode(bookCodeRaw) {
-  const code = String(bookCodeRaw || "").trim().toUpperCase();
+function resolveBookByDeviceCode(bookCodeRaw) {
+  const codeRaw = String(bookCodeRaw || "").trim().toUpperCase();
+  const numericCode = codeRaw.match(/\d+/)?.[0] || "";
+  const normalizedNumericCode = numericCode ? numericCode.padStart(2, "0").slice(-2) : "";
+  const code = normalizedNumericCode || codeRaw;
   if (!code || code === "----") {
     return null;
   }
@@ -517,7 +555,7 @@ function resolveBookByTpCode(bookCodeRaw) {
     const candidates = [book.tag, book.bookId, book.id, book.slug, book.tpCode]
       .filter(Boolean)
       .map(value => String(value).trim().toUpperCase());
-    return candidates.includes(code);
+    return candidates.includes(code) || candidates.includes(codeRaw);
   });
   if (exact) {
     return exact;
@@ -638,13 +676,13 @@ function extractSayLines(pageData) {
 function resetRoutineState() {
   routineState.currentBook = null;
   routineState.currentSelection = null;
-  routineState.lastTpSeq = -1;
+  routineState.lastDeviceSeq = -1;
   routineState.logs = [];
-  routineState.tpConnected = false;
-  setTpConnectionState("disconnected");
+  routineState.deviceConnected = false;
+  setDeviceConnectionState("disconnected");
 
-  updatePayloadStatus("Esperando inicio de show.", false);
-  renderTpStatus("TP no conectado");
+  updatePayloadStatus("Conectá MrCamerDev1.0 y acercá el payload del libro.", false);
+  renderDeviceStatus("No conectado");
   renderAudioStatus({
     state: "idle",
     message: "Esperando cola de audio.",
@@ -657,9 +695,24 @@ function resetRoutineState() {
   refreshAudioButtons();
 }
 
-function renderTpStatus(label) {
-  if (ui.tpStatusLabel) {
-    ui.tpStatusLabel.textContent = label;
+
+function setBookTestImposibleV2DeviceState(state, deviceLabel = "") {
+  routineState.deviceConnected = state === "connected";
+  routineState.deviceConnectionState = state;
+
+  if (state === "connected") {
+    renderDeviceStatus(deviceLabel ? `Conectado (${deviceLabel})` : "Conectado");
+    updatePayloadStatus("MrCamerDev1.0 conectado. Esperando payload de libro (01 = Narnia: El sobrino del mago).", false);
+    return;
+  }
+
+  renderDeviceStatus("No conectado");
+  updatePayloadStatus("MrCamerDev1.0 desconectado. Selección previa conservada.", false);
+}
+
+function renderDeviceStatus(label) {
+  if (ui.deviceStatusLabel) {
+    ui.deviceStatusLabel.textContent = label;
   }
 }
 
@@ -691,19 +744,15 @@ function refreshAudioButtons(currentAudioState) {
   }
 }
 
-function isTpAdapterConnected() {
-  return Boolean(tpAdapter?.device?.gatt?.connected || tpAdapter?.server?.connected);
-}
-
-function setTpConnectionState(state) {
-  routineState.tpConnectionState = state;
+function setDeviceConnectionState(state) {
+  routineState.deviceConnectionState = state;
   if (!ui.startShowButton) {
     return;
   }
 
   if (state === "connecting") {
     ui.startShowButton.disabled = true;
-    ui.startShowButton.textContent = "Conectando TP...";
+    ui.startShowButton.textContent = "Conectando MrCamerDev1.0...";
     return;
   }
 
@@ -782,10 +831,15 @@ function renderLog() {
   ui.routineLog.scrollTop = ui.routineLog.scrollHeight;
 }
 
+window.registrarBookTestImposibleV2 = registrarBookTestImposibleV2;
+window.resetBookTestImposibleV2 = resetRoutineState;
+window.setBookTestImposibleV2DeviceState = setBookTestImposibleV2DeviceState;
+
 window.bookTestImposibleV2Dev = {
   buildPagePath,
   buildPreviewLines,
-  resolveBookByTpCode,
+  resolveBookByDeviceCode,
+  parseSelectionPayload,
   resolveSayWindow,
   buildPageHash,
   buildWindowHash,
