@@ -4,7 +4,9 @@ const BOOK_DATA = {
 };
 
 const MAX_LINE_NUMBER = 20;
-const MAX_LINE_CARD_SUM = 19;
+const MAX_LINE_CARD_SUM = 20;
+const DEV_MULTIANTENNA_SIM_ENABLED = true;
+const DEV_MULTIANTENNA_DEFAULT_SLOTS = [20, 20, 4, 1, 5];
 
 const routineState = {
   books: [],
@@ -34,6 +36,9 @@ const ui = {
   resolvedLineHash: null,
   resolvedWindowHash: null,
   routineLog: null,
+    multiAntennaSimCard: null,
+  multiAntennaSlotInputs: [],
+  multiAntennaInjectButton: null,
 };
 
 let showAudio;
@@ -46,9 +51,9 @@ if (document.readyState === "loading") {
 
 async function initBookTestImposibleV2Routine() {
   bindUiElements();
-  bindEvents();
   setupAudio();
   resetRoutineState();
+  bindEvents();
   await preloadBooks();
   logInfo("Rutina inicializada en modo móvil/audio (sin Teleprompter).", "INIT");
 }
@@ -73,12 +78,108 @@ function bindUiElements() {
   ui.resolvedWindowHash = document.getElementById("resolvedWindowHash");
 
   ui.routineLog = document.getElementById("routineLog");
+  
+  ui.multiAntennaSimCard = document.getElementById("multiAntennaSimCard");
+  ui.multiAntennaSlotInputs = [1, 2, 3, 4, 5]
+    .map(slotNumber => document.getElementById(`multiAntennaSlot${slotNumber}`))
+    .filter(Boolean);
+  ui.multiAntennaInjectButton = document.getElementById("injectMultiAntennaSelectionButton");
 }
 
 function bindEvents() {
-ui.startShowButton?.addEventListener("click", () => showAudio?.enableFromUserGesture());
+  ui.startShowButton?.addEventListener("click", () => showAudio?.enableFromUserGesture());
   ui.replayAudioButton?.addEventListener("click", () => showAudio?.replay());
   ui.stopAudioButton?.addEventListener("click", () => showAudio?.stop("Audio detenido por operador."));
+  bindMultiAntennaSimulatorEvents();
+}
+
+function bindMultiAntennaSimulatorEvents() {
+  if (!DEV_MULTIANTENNA_SIM_ENABLED) {
+    ui.multiAntennaSimCard?.setAttribute("hidden", "hidden");
+    return;
+  }
+
+  if (!ui.multiAntennaSimCard || !ui.multiAntennaInjectButton || ui.multiAntennaSlotInputs.length !== DEV_MULTIANTENNA_DEFAULT_SLOTS.length) {
+    logError("[SIM][ERROR] Simulador multiantena incompleto en HTML.", "SIM");
+    return;
+  }
+
+  ui.multiAntennaSimCard.removeAttribute("hidden");
+  ui.multiAntennaSlotInputs.forEach((input, index) => {
+    if (input.value === "") {
+      input.value = String(DEV_MULTIANTENNA_DEFAULT_SLOTS[index]);
+    }
+  });
+  ui.multiAntennaInjectButton.addEventListener("click", injectMultiAntennaSelectionFromUi);
+  logInfo("[SIM] Multiantena UX habilitada", "SIM");
+}
+
+function readMultiAntennaSlotsFromUi() {
+  return ui.multiAntennaSlotInputs.map(input => {
+    const rawValue = String(input.value || "").trim();
+    if (!/^\d+$/.test(rawValue)) {
+      return null;
+    }
+    const slotValue = Number.parseInt(rawValue, 10);
+    return Number.isInteger(slotValue) && slotValue >= 0 ? slotValue : null;
+  });
+}
+
+function sumMultiAntennaSlots(slots) {
+  return {
+    page: slots[0] + slots[1] + slots[2],
+    line: slots[3] + slots[4],
+  };
+}
+
+function validateMultiAntennaSlots(slots) {
+  if (slots.length !== DEV_MULTIANTENNA_DEFAULT_SLOTS.length || slots.some(slot => !Number.isInteger(slot) || slot < 0)) {
+    return "Slots inválidos";
+  }
+
+  const { page, line } = sumMultiAntennaSlots(slots);
+  if (page <= 0 || line <= 0 || line > MAX_LINE_NUMBER) {
+    return "Página o renglón fuera de rango";
+  }
+
+  return "";
+}
+
+async function injectMultiAntennaSelectionFromUi() {
+  if (!routineState.currentBook) {
+    const message = "Primero resolvé el libro desde MrCamerDev1.0 antes de inyectar selección multiantena.";
+    updatePayloadStatus(message, true);
+    logError("[SIM][ERROR] No hay libro actual resuelto", "SIM");
+    return;
+  }
+
+  const slots = readMultiAntennaSlotsFromUi();
+  const slotsLabel = slots.map(slot => (slot == null ? "null" : String(slot))).join(",");
+  logInfo(`[SIM] Slots recibidos: [${slotsLabel}]`, "SIM");
+
+  const validationError = validateMultiAntennaSlots(slots);
+  if (validationError) {
+    const isInvalidSlots = validationError === "Slots inválidos";
+    updatePayloadStatus(validationError, true);
+    logError(`[SIM][ERROR] ${validationError}`, "SIM");
+    if (!isInvalidSlots) {
+      logError(`[SIM][ERROR] Rango permitido: page > 0, line 1..${MAX_LINE_NUMBER}. Suma de cartas clásica hasta ${MAX_LINE_CARD_SUM}.`, "SIM");
+    }
+    return;
+  }
+
+  const { page, line } = sumMultiAntennaSlots(slots);
+  logInfo(`[SIM] Selección calculada -> page=${page} line=${line}`, "SIM");
+  if (line > MAX_LINE_CARD_SUM) {
+    logInfo(`[SIM] Renglón ${line} supera suma clásica ${MAX_LINE_CARD_SUM}, permitido por máximo extendido ${MAX_LINE_NUMBER}.`, "SIM");
+  }
+  logInfo("[SIM] Inyectando selección multiantena en flujo V2", "SIM");
+
+  await handleDeviceSelectionEvent({
+    page,
+    line,
+    source: "UX_SIM_MULTI",
+  });
 }
 
 function setupAudio() {
@@ -844,4 +945,6 @@ window.bookTestImposibleV2Dev = {
   buildPageHash,
   buildWindowHash,
   buildLineHash,
+  sumMultiAntennaSlots,
+  injectMultiAntennaSelectionFromUi,
 };
