@@ -1,4 +1,8 @@
 (function setupBookTestImposibleV2ShowAudio(global) {
+  const SHOW_DEV_T1_MS = 10000;
+  const SHOW_DEV_T2_MS = 5000;
+  const SHOW_DEV_FOLLOWUP_COUNT = 3;
+
     /*TODO(audio-canonical): los futuros takes (title/author/line-XXX_p1..p3) deben generarse
       desde el SAY canónico de página y validarse por lineHash para alinear texto + audio.*/
   class BookTestImposibleV2ShowAudio {
@@ -126,7 +130,7 @@
         if (typeof item.label === "string" && item.label.startsWith("Take ")) {
           this.log("INFO", `[AUDIO] ${item.label}`);
         }
-        if (typeof item.label === "string" && item.label.startsWith("[AUDIO] Post-show ->")) {
+        if (typeof item.label === "string" && item.label.startsWith("[AUDIO]")) {
           this.log("INFO", item.label);
         }
         if (Number.isInteger(item.takeIndex) && Number.isInteger(item.partIndex) && item.src) {
@@ -205,11 +209,7 @@
       }
 
       const context = this.resolveReadingContext(bookId, page, line);
-      const takes = this.getClassicTakeUrls(context);
-      const queue = [
-        ...this.playClassicReadingThreeTakes(context, takes),
-        ...this.buildPostShowQueue(context),
-      ];
+      const queue = this.buildInitialShowQueue(context);
       this.resetClassicPlaybackState();
       this.setQueue(queue, { label: `classic:${bookId}:page-${this.pad3(page)}:line-${this.pad3(context.playbackLineNumber)}` });
       
@@ -230,6 +230,94 @@
         this.log("ERROR", `[AUDIO][ERROR] ${error.message}`);
         this.stop("Audio clásico abortado por error.");
       }
+    }
+
+    async playShowDevSequence(params = {}) {
+      const bookId = params.bookId;
+      const page = Number(params.page);
+      const line = Number(params.line);
+      const pageLineCount = Number(params.pageLineCount);
+
+      if (!bookId || !Number.isInteger(page) || !Number.isInteger(line) || line <= 0) {
+        this.log("ERROR", `[AUDIO][ERROR] Parámetros inválidos para flujo show DEV (bookId=${bookId}, page=${params.page}, line=${params.line}).`);
+        return;
+      }
+
+      if (!Number.isInteger(pageLineCount) || pageLineCount <= 0) {
+        this.log("ERROR", `[AUDIO][ERROR] pageLineCount inválido para flujo show DEV (pageLineCount=${params.pageLineCount}).`);
+        return;
+      }
+
+      if (line > pageLineCount) {
+        this.log("ERROR", `[AUDIO][ERROR] Línea base fuera de rango para flujo show DEV: line=${line}, pageLineCount=${pageLineCount}.`);
+        return;
+      }
+
+      this.log("INFO", "[AUDIO] Iniciando flujo show DEV encadenado");
+      this.log("INFO", `[AUDIO] Línea base -> page=${this.pad3(page)} line=${this.pad3(line)}`);
+
+      const initialContext = this.resolveReadingContext(bookId, page, line);
+      const queue = [
+        ...this.buildInitialShowQueue(initialContext),
+      ];
+      this.log("INFO", "[AUDIO] Post-show inicial completo");
+
+      for (let offset = 1; offset <= SHOW_DEV_FOLLOWUP_COUNT; offset += 1) {
+        const followUpQueue = this.buildFollowUpClassicQueue({
+          bookId,
+          page,
+          baseLine: line,
+          offset,
+          pageLineCount,
+        });
+
+        if (!followUpQueue) {
+          break;
+        }
+
+        const waitMs = offset === 1 ? SHOW_DEV_T1_MS : SHOW_DEV_T2_MS;
+        const waitLabel = offset === 1
+          ? `[AUDIO] Espera T1 = ${SHOW_DEV_T1_MS} ms`
+          : `[AUDIO] Espera T2 = ${SHOW_DEV_T2_MS} ms`;
+        this.log("INFO", waitLabel);
+        queue.push({ type: "pause", ms: waitMs, label: waitLabel });
+        queue.push(...followUpQueue);
+      }
+
+      this.resetClassicPlaybackState();
+      this.setQueue(queue, { label: `show-dev:${bookId}:page-${this.pad3(page)}:line-${this.pad3(line)}` });
+
+      try {
+        await this.playQueue();
+        if (this.status === "completed") {
+          this.log("INFO", "[AUDIO] Fin flujo show DEV encadenado");
+        }
+      } catch (error) {
+        this.log("ERROR", `[AUDIO][ERROR] ${error.message}`);
+        this.stop("Flujo show DEV abortado por error.");
+      }
+    }
+
+    buildInitialShowQueue(context) {
+      const takes = this.getClassicTakeUrls(context);
+      return [
+        ...this.playClassicReadingThreeTakes(context, takes),
+        ...this.buildPostShowQueue(context),
+      ];
+    }
+
+    buildFollowUpClassicQueue({ bookId, page, baseLine, offset, pageLineCount }) {
+      const targetLine = Number(baseLine) + Number(offset);
+      if (!Number.isInteger(targetLine) || !Number.isInteger(pageLineCount) || targetLine > pageLineCount) {
+        this.log("INFO", `[AUDIO] Follow-up +${offset} omitido por fuera de rango`);
+        this.log("INFO", `[AUDIO] Follow-up +${offset} omitido: la página ${this.pad3(page)} no tiene línea ${targetLine}.`);
+        return null;
+      }
+
+      this.log("INFO", `[AUDIO] Follow-up +${offset} -> line=${this.pad3(targetLine)}`);
+      const context = this.resolveReadingContext(bookId, page, targetLine);
+      const takes = this.getClassicTakeUrls(context);
+      return this.playClassicReadingThreeTakes(context, takes);
     }
 
     resetClassicPlaybackState() {

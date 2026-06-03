@@ -296,7 +296,12 @@ async function handleDeviceSelectionEvent(selectionPayload) {
       logError(`[AUDIO] Línea inválida para show-time: ${requestedLine}. Rango permitido 1..${MAX_LINE_NUMBER}.`, "AUDIO");
       return;
     }
-    await showAudio.playClassicLineAudio(selection.book.bookId, selection.pageNumber, requestedLine);
+    await showAudio.playShowDevSequence({
+      bookId: selection.book.bookId,
+      page: selection.pageNumber,
+      line: requestedLine,
+      pageLineCount: selection.sayLines.length,
+    });
   } catch (error) {
     updatePayloadStatus(error.message, true);
     logError(error.message, "DATA");
