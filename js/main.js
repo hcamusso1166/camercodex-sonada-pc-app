@@ -57,6 +57,7 @@ window.addEventListener("DOMContentLoaded", function () {
 document.getElementById('appVersion').textContent = appVersion;
 actualizarIconoConexionBLE("desconectado");
 actualizarAnimacionBotonConexion(true);
+actualizarAccion(`Conectar ${getDefaultBleDeviceNameForView(currentView)}`);
 
   const connectButton = document.getElementById('connectBleButton');
   const disconnectButton = document.getElementById('disconnectBleButton');
@@ -839,7 +840,38 @@ function shouldProcessAntennaForPolicy(antennaId, policy) {
   }
 }
 
-const deviceName = 'MrCamerDev1.0';
+const BLE_DEVICE_NAMES = Object.freeze({
+  STANDARD: "MrCamerDev1.0",
+  Q5: "MrCamerDev_Q5",
+});
+
+const ROUTINE_BLE_DEVICE_MODE = Object.freeze({
+  STANDARD: "standard",
+  Q5_ONLY: "q5Only",
+  DUAL: "dual",
+});
+
+const ROUTINE_BLE_MODE_BY_VIEW = Object.freeze({
+  "lecturaQ.html": ROUTINE_BLE_DEVICE_MODE.Q5_ONLY,
+  "bookTestImposible.html": ROUTINE_BLE_DEVICE_MODE.DUAL,
+  "bookTestImposibleV2.html": ROUTINE_BLE_DEVICE_MODE.DUAL,
+});
+
+function getBleModeForView(viewName = currentView) {
+  return ROUTINE_BLE_MODE_BY_VIEW[viewName] || ROUTINE_BLE_DEVICE_MODE.STANDARD;
+}
+
+function getDefaultBleDeviceNameForView(viewName = currentView) {
+  const mode = getBleModeForView(viewName);
+
+  if (mode === ROUTINE_BLE_DEVICE_MODE.Q5_ONLY) {
+    return BLE_DEVICE_NAMES.Q5;
+  }
+
+  return BLE_DEVICE_NAMES.STANDARD;
+}
+
+const deviceName = getDefaultBleDeviceNameForView();
 const bleService = '19b10000-e8f2-537e-4f6c-d104768a1214';
 const ledCharacteristic = '19b10002-e8f2-537e-4f6c-d104768a1214';
 const sensorCharacteristic = '19b10001-e8f2-537e-4f6c-d104768a1214';
@@ -855,7 +887,7 @@ let camerSeq        = 0;
 
 const isBookTestImposibleLegacyView = currentView === "bookTestImposible.html";
 const isBookTestImposibleV2View = currentView === "bookTestImposibleV2.html";
-const isBookTestImposibleView = isBookTestImposibleLegacyView;
+const isBookTestImposibleView = isBookTestImposibleLegacyView || isBookTestImposibleV2View;
 const characteristicDeviceMap = new WeakMap();
 const bookTestConnections = [];
 
@@ -957,19 +989,36 @@ function actualizarAccion(accion) {
 }
 // Connect to BLE Device
 function connectToDevice() {
-  console.log('Initializing Bluetooth...');
+    return connectToDeviceByName(getDefaultBleDeviceNameForView(currentView));
+}
 
-    if (isBookTestImposibleView && bookTestConnections.length >= 2) {
+function connectToQ5Device() {
+  return connectToDeviceByName(BLE_DEVICE_NAMES.Q5);
+}
+
+function connectToStandardDevice() {
+  return connectToDeviceByName(BLE_DEVICE_NAMES.STANDARD);
+}
+
+function connectToDeviceByName(expectedDeviceName) {
+  console.log('Initializing Bluetooth...');
+  console.log(`[BLE] Rutina ${currentView}: solicitando dispositivo ${expectedDeviceName}`);
+
+  if (isBookTestImposibleView && bookTestConnections.length >= 2) {
     console.warn("Ya hay dos dispositivos conectados para Book Test Imposible.");
-    return;
+    return Promise.resolve();
   }
 
-  navigator.bluetooth.requestDevice({
-    filters: [{ name: deviceName }],
+  return navigator.bluetooth.requestDevice({
+    filters: [{ name: expectedDeviceName }],
     optionalServices: [bleService]
   })
     .then(device => {
       console.log('Device Selected:', device.name);
+
+      if (device.name !== expectedDeviceName) {
+        throw new Error(`Dispositivo BLE incorrecto. Esperado: ${expectedDeviceName}. Seleccionado: ${device.name || "(sin nombre)"}`);
+      }
 
       const connectionInfo = { device, role: isBookTestImposibleView ? getNextPendingRole() : "primary" };
       if (isBookTestImposibleView) {
@@ -986,7 +1035,7 @@ function connectToDevice() {
           onBookTestDisconnected(connectionInfo);
           if (bookTestConnections.length === 0) {
             actualizarIconoConexionBLE("desconectado");
-            actualizarAccion("Conectar el dispositivo BLE");
+            actualizarAccion(`Conectar ${getDefaultBleDeviceNameForView(currentView)}`);
           }
         } else {
           onDisconnected();
@@ -1017,7 +1066,7 @@ function connectToDevice() {
           ]).then(([sensor, battery]) => ({ sensor, battery, connectionInfo }));
         });
     })
-      .then(({ sensor, battery, connectionInfo }) => {
+    .then(({ sensor, battery, connectionInfo }) => {
       console.log("Característica sensor descubierta:", sensor.uuid);
       if (battery) {
         console.log("Característica batería descubierta:", battery.uuid);
@@ -1035,14 +1084,14 @@ function connectToDevice() {
         sensor.startNotifications();
         console.log("Notificaciones de sensor iniciadas.");
 
-actualizarIconoConexionBLE("conectado");
+        actualizarIconoConexionBLE("conectado");
         actualizarAnimacionBotonConexion(false);
         if (!isBookTestImposibleView && bleStateContainer) {
           bleStateContainer.style.color = "#24af37";
         }
         limpiarDatos();
         if (isBookTestImposibleV2View && typeof setBookTestImposibleV2DeviceState === "function") {
-          setBookTestImposibleV2DeviceState("connected", device.name);
+          etBookTestImposibleV2DeviceState("connected", connectionInfo.device.name);
         }
         actualizarAccion("Leer carta");
 
@@ -1079,7 +1128,7 @@ function onDisconnected(event) {
     bleStateContainer.style.color = "#d13a30";
   }
   actualizarIconoConexionBLE("desconectado");
-  actualizarAccion("Conectar el dispositivo BLE");
+  actualizarAccion(`Conectar ${getDefaultBleDeviceNameForView(currentView)}`);
   actualizarAnimacionBotonConexion(true);
 
 }
@@ -1415,7 +1464,7 @@ if (isBookTestImposibleView) {
         setBookTestLineState("primary", "Desconectado", "#d13a30", "");
         setBookTestLineState("secondary", "Desconectado", "#d13a30", "");
         actualizarIconoConexionBLE("desconectado");
-        actualizarAccion("Conectar el dispositivo BLE");
+        actualizarAccion(`Conectar ${getDefaultBleDeviceNameForView(currentView)}`);
       })
       .catch(error => {
         console.log("An error occurred:", error);
@@ -1437,7 +1486,7 @@ if (isBookTestImposibleView) {
             setBookTestImposibleV2DeviceState("disconnected");
           }
           if (accionMagoMensaje) {
-            accionMagoMensaje.textContent = "Conectar el dispositivo BLE";
+            accionMagoMensaje.textContent = `Conectar ${getDefaultBleDeviceNameForView(currentView)}`;
           }
           if (typeof resetLecturaQSlots === 'function') {
             resetLecturaQSlots();
