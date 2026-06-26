@@ -61,6 +61,7 @@ actualizarAccion(`Conectar ${getDefaultBleDeviceNameForView(currentView)}`);
 
   const connectButton = document.getElementById('connectBleButton');
   const disconnectButton = document.getElementById('disconnectBleButton');
+  const connectQ5Button = document.getElementById('connectQ5BleButton');
   const onButton = document.getElementById('onButton');
   const offButton = document.getElementById('offButton');
   const checkBtn = document.getElementById("checkBluetoothBtn");
@@ -99,6 +100,13 @@ if (estadoBLEIcon && navigator.bluetooth) {
     connectButton.addEventListener('click', () => {
       if (isWebBluetoothEnabled()) {
         connectToDevice();
+      }
+    });
+  }
+    if (connectQ5Button) {
+    connectQ5Button.addEventListener('click', () => {
+      if (isWebBluetoothEnabled()) {
+        connectToQ5Device();
       }
     });
   }
@@ -989,7 +997,13 @@ function actualizarAccion(accion) {
 }
 // Connect to BLE Device
 function connectToDevice() {
-    return connectToDeviceByName(getDefaultBleDeviceNameForView(currentView));
+  if (isBookTestImposibleV2View) {
+    const hasBook = bookTestConnections.some(conn => conn.role === "bookDevice" || conn.role === "primary");
+    const hasQ5 = bookTestConnections.some(conn => conn.role === "q5Device" || conn.role === "secondary");
+    if (!hasBook) return connectToStandardDevice();
+    if (!hasQ5) return connectToQ5Device();
+  }
+  return connectToDeviceByName(getDefaultBleDeviceNameForView(currentView));
 }
 
 function connectToQ5Device() {
@@ -1020,10 +1034,23 @@ function connectToDeviceByName(expectedDeviceName) {
         throw new Error(`Dispositivo BLE incorrecto. Esperado: ${expectedDeviceName}. Seleccionado: ${device.name || "(sin nombre)"}`);
       }
 
-      const connectionInfo = { device, role: isBookTestImposibleView ? getNextPendingRole() : "primary" };
+      const connectionInfo = {
+        device,
+        role: isBookTestImposibleV2View
+          ? (expectedDeviceName === BLE_DEVICE_NAMES.Q5 ? "q5Device" : "bookDevice")
+          : (isBookTestImposibleView ? getNextPendingRole() : "primary"),
+      };
       if (isBookTestImposibleView) {
         bookTestConnections.push(connectionInfo);
-        setPendingBookTestState(connectionInfo);
+        if (isBookTestImposibleV2View && typeof setBookTestImposibleV2DeviceState === "function") {
+          setBookTestImposibleV2DeviceState(
+            "connecting",
+            connectionInfo.device.name,
+            connectionInfo.role === "q5Device" ? "q5Device" : "bookDevice"
+          );
+        } else {
+          setPendingBookTestState(connectionInfo);
+        }
       } else if (bleStateContainer) {
         bleStateContainer.innerHTML = device.name;
       }
@@ -1033,6 +1060,9 @@ function connectToDeviceByName(expectedDeviceName) {
           const index = bookTestConnections.indexOf(connectionInfo);
           if (index >= 0) bookTestConnections.splice(index, 1);
           onBookTestDisconnected(connectionInfo);
+           if (isBookTestImposibleV2View && typeof setBookTestImposibleV2DeviceState === "function") {
+            setBookTestImposibleV2DeviceState("disconnected", connectionInfo.device?.name || "", connectionInfo.role === "q5Device" ? "q5Device" : "bookDevice");
+          }
           if (bookTestConnections.length === 0) {
             actualizarIconoConexionBLE("desconectado");
             actualizarAccion(`Conectar ${getDefaultBleDeviceNameForView(currentView)}`);
@@ -1089,9 +1119,15 @@ function connectToDeviceByName(expectedDeviceName) {
         if (!isBookTestImposibleView && bleStateContainer) {
           bleStateContainer.style.color = "#24af37";
         }
-        limpiarDatos();
+        if (!isBookTestImposibleV2View) {
+          limpiarDatos();
+        }
         if (isBookTestImposibleV2View && typeof setBookTestImposibleV2DeviceState === "function") {
-          etBookTestImposibleV2DeviceState("connected", connectionInfo.device.name);
+          setBookTestImposibleV2DeviceState(
+            "connected",
+            connectionInfo.device.name,
+            connectionInfo.role === "q5Device" ? "q5Device" : "bookDevice"
+          );
         }
         actualizarAccion("Leer carta");
 
@@ -1294,7 +1330,14 @@ const len = dataView.byteLength;
       guardarTagTeg(mvalor);
       break;
     case "lecturaQ.html":
-      registrarLecturaQ({ mvalor, antennaId: camerAntennaId });
+      registrarLecturaQ({
+        mvalor,
+        valor,
+        antennaId: camerAntennaId,
+        eventType: camerEventType,
+        flags: camerFlags,
+        seq: camerSeq,
+      });
       break;
     case "bookTestImposible.html":
     if (typeof registrarBookTestImposible === "function") {
@@ -1312,6 +1355,8 @@ const len = dataView.byteLength;
           eventType: camerEventType,
           flags: camerFlags,
           seq: camerSeq,
+          deviceName: sourceConnection?.device?.name || "",
+          sourceRole: sourceConnection?.role === "q5Device" ? "q5Device" : "bookDevice",
         });
       }
       break;  

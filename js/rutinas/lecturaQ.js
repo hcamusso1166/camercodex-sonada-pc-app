@@ -9,12 +9,12 @@ const LECTURA_Q_ANTENNA_SLOT_MAP = {
 };
 const LECTURA_Q_INACTIVITY_MS = 30000;
 
-const lecturaQState = Array.from({ length: LECTURA_Q_SLOT_COUNT }, () => ({
-  mvalor: null,
-  code: null,
-  description: null,
-  lastUpdated: null,
-}));
+const CAMER_EVENT_READ_NEW = 0;
+const CAMER_EVENT_READ_REPEAT = 1;
+const CAMER_EVENT_REMOVED = 2;
+const CAMER_FLAG_FULL_SNAPSHOT = 0x80;
+
+const lecturaQState = Array.from({ length: LECTURA_Q_SLOT_COUNT }, () => crearEstadoLecturaQ());
 
 let lecturaQInactivityTimer = null;
 
@@ -28,6 +28,19 @@ if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", inicializarLecturaQ);
 } else {
   inicializarLecturaQ();
+}
+
+function crearEstadoLecturaQ() {
+  return {
+    mvalor: null,
+    valor: null,
+    code: null,
+    description: null,
+    lastUpdated: null,
+    lastSeq: null,
+    lastEventType: null,
+    lastFlags: null,
+  };
 }
 
 function inicializarLecturaQ() {
@@ -187,24 +200,64 @@ function programarRecordatorioLecturaQ() {
   }, LECTURA_Q_INACTIVITY_MS);
 }
 
-function registrarLecturaQ({ mvalor, antennaId }) {
-if (!antennaId || !LECTURA_Q_ANTENNA_SLOT_MAP[antennaId]) {
+function limpiarSlotLecturaQ(slotIndex, metadata = {}) {
+  lecturaQState[slotIndex - 1] = {
+    ...crearEstadoLecturaQ(),
+    lastUpdated: new Date(),
+    lastSeq: metadata.seq ?? null,
+    lastEventType: metadata.eventType ?? CAMER_EVENT_REMOVED,
+    lastFlags: metadata.flags ?? null,
+  };
+  actualizarVistaSlotLecturaQ(slotIndex);
+}
+
+function registrarLecturaQ({
+  mvalor,
+  valor = null,
+  antennaId,
+  eventType = CAMER_EVENT_READ_NEW,
+  flags = 0,
+  seq = null,
+}) {
+  if (!antennaId || !LECTURA_Q_ANTENNA_SLOT_MAP[antennaId]) {
     console.warn("LecturaQ: antennaId fuera de rango", antennaId);
     return;
   }
 
   const slotIndex = LECTURA_Q_ANTENNA_SLOT_MAP[antennaId];
+  const isFullSnapshot = Boolean(flags & CAMER_FLAG_FULL_SNAPSHOT);
+
+  if (eventType === CAMER_EVENT_REMOVED) {
+    limpiarSlotLecturaQ(slotIndex, { eventType, flags, seq });
+    return;
+  }
+
+  if (eventType !== CAMER_EVENT_READ_NEW && eventType !== CAMER_EVENT_READ_REPEAT) {
+    console.warn("LecturaQ: eventType no soportado", eventType);
+    return;
+  }
+
   const estado = lecturaQState[slotIndex - 1];
   const { code, description } = obtenerDescripcionCartaLecturaQ(mvalor);
 
   estado.mvalor = mvalor;
+  estado.valor = valor;
   estado.code = code;
   estado.description = description;
   estado.lastUpdated = new Date();
+  estado.lastSeq = seq;
+  estado.lastEventType = eventType;
+  estado.lastFlags = flags;
 
   actualizarVistaSlotLecturaQ(slotIndex);
-  anunciarSlotsLecturaQ();
-  programarRecordatorioLecturaQ();
+
+  if (eventType === CAMER_EVENT_READ_NEW && !isFullSnapshot) {
+    anunciarSlotsLecturaQ();
+  }
+
+  if (haySlotsConDatosLecturaQ()) {
+    programarRecordatorioLecturaQ();
+  }
 }
 
 function resetLecturaQSlots() {
@@ -218,12 +271,7 @@ function resetLecturaQSlots() {
   }
 
   for (let i = 0; i < LECTURA_Q_SLOT_COUNT; i += 1) {
-    lecturaQState[i] = {
-      mvalor: null,
-      code: null,
-      description: null,
-      lastUpdated: null,
-    };
+    lecturaQState[i] = crearEstadoLecturaQ();
     actualizarVistaSlotLecturaQ(i + 1);
   }
 }

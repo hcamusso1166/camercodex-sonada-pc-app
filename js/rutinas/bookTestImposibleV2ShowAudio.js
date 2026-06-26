@@ -1,6 +1,6 @@
 (function setupBookTestImposibleV2ShowAudio(global) {
-  const SHOW_DEV_T1_MS = 10000;
-  const SHOW_DEV_T2_MS = 5000;
+  const BTI_V2_T1_AFTER_SELECTED_LINE_MS = 10000;
+  const BTI_V2_T2_BETWEEN_FOLLOWUP_LINES_MS = 5000;
   const SHOW_DEV_FOLLOWUP_COUNT = 3;
 
     /*TODO(audio-canonical): los futuros takes (title/author/line-XXX_p1..p3) deben generarse
@@ -275,10 +275,10 @@
           break;
         }
 
-        const waitMs = offset === 1 ? SHOW_DEV_T1_MS : SHOW_DEV_T2_MS;
+        const waitMs = offset === 1 ? BTI_V2_T1_AFTER_SELECTED_LINE_MS : BTI_V2_T2_BETWEEN_FOLLOWUP_LINES_MS;
         const waitLabel = offset === 1
-          ? `[AUDIO] Espera T1 = ${SHOW_DEV_T1_MS} ms`
-          : `[AUDIO] Espera T2 = ${SHOW_DEV_T2_MS} ms`;
+          ? `[AUDIO] Espera T1 = ${BTI_V2_T1_AFTER_SELECTED_LINE_MS} ms`
+          : `[AUDIO] Espera T2 = ${BTI_V2_T2_BETWEEN_FOLLOWUP_LINES_MS} ms`;
         this.log("INFO", waitLabel);
         queue.push({ type: "pause", ms: waitMs, label: waitLabel });
         queue.push(...followUpQueue);

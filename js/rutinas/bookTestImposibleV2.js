@@ -7,11 +7,29 @@ const MAX_LINE_NUMBER = 20;
 const MAX_LINE_CARD_SUM = 20;
 const DEV_MULTIANTENNA_SIM_ENABLED = true;
 const DEV_MULTIANTENNA_DEFAULT_SLOTS = [20, 20, 4, 1, 5];
+const BTI_V2_BOOK_DEVICE_NAME = "MrCamerDev1.0";
+const BTI_V2_Q5_DEVICE_NAME = "MrCamerDev_Q5";
+const BTI_V2_PHASES = Object.freeze({
+  WAIT_BOOK_DEVICE: "WAIT_BOOK_DEVICE",
+  WAIT_Q5_DEVICE: "WAIT_Q5_DEVICE",
+  LISTENING: "LISTENING",
+  LOCKED: "LOCKED",
+  PLAYING: "PLAYING",
+  COMPLETE: "COMPLETE",
+  ERROR: "ERROR",
+});
 
 const routineState = {
   books: [],
   currentBook: null,
   currentSelection: null,
+  phase: BTI_V2_PHASES.WAIT_BOOK_DEVICE,
+  bookDeviceState: { connected: false, connecting: false, deviceName: BTI_V2_BOOK_DEVICE_NAME },
+  q5DeviceState: { connected: false, connecting: false, deviceName: BTI_V2_Q5_DEVICE_NAME },
+  q5Slots: { 2: null, 3: null, 4: null, 5: null, 6: null },
+  selectionLocked: false,
+  lockedSelection: null,
+  ignoredLockedPacketLogged: false,
   lastDeviceSeq: -1,
   logs: [],
   deviceConnected: false,
@@ -21,9 +39,12 @@ const routineState = {
 
 const ui = {
   startShowButton: null,
+  connectQ5Button: null,
   replayAudioButton: null,
   stopAudioButton: null,
   deviceStatusLabel: null,
+  bookDeviceStatusLabel: null,
+  q5DeviceStatusLabel: null,
   audioStatusLabel: null,
   payloadStatus: null,
   resolvedBookTitle: null,
@@ -61,9 +82,12 @@ async function initBookTestImposibleV2Routine() {
 function bindUiElements() {
   ui.startShowButton = document.getElementById("connectBleButton") || document.getElementById("startShowButton");
   routineState.startShowButtonDefaultLabel = ui.startShowButton?.textContent || "Conectar MrCamerDev1.0";
+  ui.connectQ5Button = document.getElementById("connectQ5BleButton");
   ui.replayAudioButton = document.getElementById("replayAudioButton");
   ui.stopAudioButton = document.getElementById("stopAudioButton");
   ui.deviceStatusLabel = document.getElementById("deviceStatusLabel") || document.getElementById("tpStatusLabel");
+  ui.bookDeviceStatusLabel = document.getElementById("bookDeviceStatusLabel") || ui.deviceStatusLabel;
+  ui.q5DeviceStatusLabel = document.getElementById("q5DeviceStatusLabel");
   ui.audioStatusLabel = document.getElementById("audioStatusLabel");
   ui.payloadStatus = document.getElementById("payloadStatus");
 
@@ -88,6 +112,7 @@ function bindUiElements() {
 
 function bindEvents() {
   ui.startShowButton?.addEventListener("click", () => showAudio?.enableFromUserGesture());
+  ui.connectQ5Button?.addEventListener("click", () => showAudio?.enableFromUserGesture());
   ui.replayAudioButton?.addEventListener("click", () => showAudio?.replay());
   ui.stopAudioButton?.addEventListener("click", () => showAudio?.stop("Audio detenido por operador."));
   bindMultiAntennaSimulatorEvents();
@@ -175,11 +200,8 @@ async function injectMultiAntennaSelectionFromUi() {
   }
   logInfo("[SIM] Inyectando selección multiantena en flujo V2", "SIM");
 
-  await handleDeviceSelectionEvent({
-    page,
-    line,
-    source: "UX_SIM_MULTI",
-  });
+  updateQ5SlotsFromValues(slots, "UX_SIM_MULTI");
+  await tryLockAndStartShow();
 }
 
 function setupAudio() {
@@ -203,63 +225,147 @@ async function preloadBooks() {
 
 function registrarBookTestImposibleV2(payload = {}) {
   const normalizedPayload = normalizeDevicePayload(payload);
+  const sourceRole = payload.sourceRole || inferSourceRole(payload, normalizedPayload);
+  handleBtiV2Packet(normalizedPayload, sourceRole);
+}
 
-  if (normalizedPayload.seq > 0 && normalizedPayload.seq <= routineState.lastDeviceSeq) {
-    logInfo(`Lectura ignorada por seq viejo (seq=${normalizedPayload.seq}, last=${routineState.lastDeviceSeq}).`, "EVENT");
-    return;
-  }
-  if (normalizedPayload.seq > 0) {
-    routineState.lastDeviceSeq = normalizedPayload.seq;
-  }
+function inferSourceRole(payload, normalizedPayload) {
+  if (payload.deviceName === BTI_V2_Q5_DEVICE_NAME) return "q5Device";
+  if (payload.deviceName === BTI_V2_BOOK_DEVICE_NAME) return "bookDevice";
+  if ([2, 3, 4, 5, 6].includes(normalizedPayload.antennaId)) return "q5Device";
+  return "bookDevice";
+}
 
-  const payloadLabel = normalizedPayload.rawValue || normalizedPayload.bookCode || "—";
-  logInfo(
-    `Payload MrCamer recibido: ${JSON.stringify({ valor: payloadLabel, antennaId: normalizedPayload.antennaId, seq: normalizedPayload.seq })}`,
-    "BLE"
-  );
-
-  const explicitBookCode = normalizedPayload.bookCode;
-  const inferredBookCode = inferBookCodeFromPayload(normalizedPayload);
-  const bookCode = explicitBookCode || inferredBookCode;
-  const shouldTreatAsBook = normalizedPayload.page == null
-    && normalizedPayload.line == null
-    && (isPrimaryAntenna(normalizedPayload.antennaId) || !routineState.currentBook);
-
-  if (bookCode && shouldTreatAsBook) {
-    handleBookPayload(bookCode);
-    return;
-  }
-
-const selectionPayload = parseSelectionPayload(normalizedPayload);
-  if (selectionPayload) {
-    if (selectionPayload.bookCode && (!routineState.currentBook || selectionPayload.bookCode !== bookCode)) {
-      handleBookPayload(selectionPayload.bookCode);
-    } else if (explicitBookCode && !routineState.currentBook) {
-      handleBookPayload(explicitBookCode);
+async function handleBtiV2Packet(normalizedPayload, sourceRole) {
+  if (routineState.selectionLocked) {
+    if (!routineState.ignoredLockedPacketLogged) {
+      logInfo("[BTI_V2] Ignoring packet because selection is locked", "BLE");
+      routineState.ignoredLockedPacketLogged = true;
     }
-
-    handleDeviceSelectionEvent(selectionPayload);
     return;
   }
 
-  if (bookCode) {
-    handleBookPayload(bookCode);
+  if (sourceRole === "q5Device") {
+    handleQ5DevicePacket(normalizedPayload);
+    await tryLockAndStartShow();
     return;
   }
 
-  const errorMessage = `Payload BTI v2 no reconocido: '${payloadLabel}'.`;
-  updatePayloadStatus(errorMessage, true);
-  logError(errorMessage, "BLE");
+  handleBookDevicePacket(normalizedPayload);
+  await tryLockAndStartShow();
+}
+
+function handleBookDevicePacket(normalizedPayload) {
+  if (!isPrimaryAntenna(normalizedPayload.antennaId)) {
+    return;
+  }
+logInfo("[BTI_V2] Book packet received", "BLE");
+
+const payloadLabel = normalizedPayload.rawValue || normalizedPayload.bookCode || "—";
+  const bookCode = normalizedPayload.bookCode || inferBookCodeFromPayload(normalizedPayload);
+  if (!bookCode) {
+    updatePayloadStatus(`Payload de libro no reconocido: '${payloadLabel}'.`, true);
+    return;
+  }
+  handleBookPayload(bookCode);
+}
+
+function handleQ5DevicePacket(normalizedPayload) {
+  const antennaId = normalizedPayload.antennaId;
+  if (![2, 3, 4, 5, 6].includes(antennaId)) {
+    return;
+  }
+
+  const value = normalizeQ5Value(normalizedPayload);
+  if (value == null) {
+    updatePayloadStatus(`Lectura Q5 inválida para antena ${antennaId}.`, true);
+    return;
+  }
+
+  routineState.q5Slots[antennaId] = value;
+  logInfo(`[BTI_V2] Q5 slot updated ${JSON.stringify({ antennaId, value })}`, "BLE");
+  renderQ5Progress();
+  if (isQ5Complete(routineState.q5Slots)) {
+    logInfo("[BTI_V2] Q5 complete", "BLE");
+  }
+}
+
+function normalizeQ5Value(payload) {
+  const candidates = [payload.card, payload.cardValue, payload.value, payload.rawValue, payload.valor, payload.mvalor];
+  for (const candidate of candidates) {
+    const digits = String(candidate ?? "").trim().replace(/[^0-9]/g, "");
+    if (!digits) continue;
+    const value = Number.parseInt(digits, 10);
+    if (Number.isInteger(value) && value > 0) return value;
+  }
+  return null;
+}
+
+function updateQ5SlotsFromValues(slots, source = "DEV") {
+  [2, 3, 4, 5, 6].forEach((antennaId, index) => {
+    const value = slots[index];
+    if (Number.isInteger(value) && value >= 0) {
+      routineState.q5Slots[antennaId] = value;
+      logInfo(`[BTI_V2] Q5 slot updated ${JSON.stringify({ antennaId, value, source })}`, "BLE");
+    }
+  });
+  renderQ5Progress();
+}
+
+function isQ5Complete(slots) {
+  return [2, 3, 4, 5, 6].every(antennaId => slots[antennaId] != null);
+}
+
+function getQ5PageLine(slots) {
+  return {
+    page: Number(slots[2]) + Number(slots[3]) + Number(slots[4]),
+    line: Number(slots[5]) + Number(slots[6]),
+  };
+}
+
+async function tryLockAndStartShow() {
+  if (routineState.selectionLocked || !routineState.currentBook || !isQ5Complete(routineState.q5Slots)) return;
+
+  const { page, line } = getQ5PageLine(routineState.q5Slots);
+  try {
+    const selection = await resolveSelection(routineState.currentBook, page, line);
+    routineState.currentSelection = selection;
+    routineState.selectionLocked = true;
+    routineState.phase = BTI_V2_PHASES.LOCKED;
+    routineState.lockedSelection = {
+      book: routineState.currentBook,
+      page,
+      line,
+      q5Slots: { ...routineState.q5Slots },
+      resolved: selection,
+      lockedAt: Date.now(),
+    };
+    logInfo("[BTI_V2] Selection locked", "BLE");
+    renderSelection(selection);
+    updatePayloadStatus("Selección fijada / Show en curso.", false);
+    renderDeviceStatuses();
+    logInfo("[BTI_V2] Starting show audio", "AUDIO");
+    await showAudio.playShowDevSequence({
+      bookId: selection.book.bookId,
+      page: selection.pageNumber,
+      line,
+      pageLineCount: selection.sayLines.length,
+    });
+  } catch (error) {
+    routineState.phase = BTI_V2_PHASES.ERROR;
+    updatePayloadStatus(error.message, true);
+    logError(error.message, "DATA");
+  }
 }
 
 function handleBookPayload(bookCode) {
   const resolvedBook = resolveBookByDeviceCode(bookCode);
+  const isSameBook = routineState.currentBook?.bookId === resolvedBook?.bookId;
   routineState.currentBook = resolvedBook;
-  routineState.currentSelection = null;
-  showAudio.stop("Audio cancelado por nuevo libro.");
-  showAudio.setQueue([], { label: "BOOK_RESET" });
-
-  clearSelectionView();
+if (!routineState.selectionLocked && !isSameBook) {
+    routineState.currentSelection = null;
+    clearSelectionView();
+  }
 
   if (!resolvedBook) {
     const errorMessage = `No se pudo mapear bookCode '${bookCode}'.`;
@@ -270,7 +376,7 @@ function handleBookPayload(bookCode) {
   }
 
   renderBookInfo(resolvedBook, bookCode);
-  updatePayloadStatus(`Libro resuelto desde MrCamerDev1.0: ${resolvedBook.title}.`, false);
+  updatePayloadStatus(isQ5Complete(routineState.q5Slots) ? `Libro resuelto: ${resolvedBook.title}. Q5 completo, fijando selección...` : `Libro resuelto desde MrCamerDev1.0: ${resolvedBook.title}. Esperando selección multiantena.`, false);
   logInfo(`Libro resuelto para code '${bookCode}': ${resolvedBook.bookId}.`, "MAP");
 }
 
@@ -782,13 +888,20 @@ function extractSayLines(pageData) {
 function resetRoutineState() {
   routineState.currentBook = null;
   routineState.currentSelection = null;
+  routineState.phase = BTI_V2_PHASES.WAIT_BOOK_DEVICE;
+  routineState.bookDeviceState = { connected: false, connecting: false, deviceName: BTI_V2_BOOK_DEVICE_NAME };
+  routineState.q5DeviceState = { connected: false, connecting: false, deviceName: BTI_V2_Q5_DEVICE_NAME };
+  routineState.q5Slots = { 2: null, 3: null, 4: null, 5: null, 6: null };
+  routineState.selectionLocked = false;
+  routineState.lockedSelection = null;
+  routineState.ignoredLockedPacketLogged = false;
   routineState.lastDeviceSeq = -1;
   routineState.logs = [];
   routineState.deviceConnected = false;
   setDeviceConnectionState("disconnected");
 
   updatePayloadStatus("Conectá MrCamerDev1.0 y acercá el payload del libro.", false);
-  renderDeviceStatus("No conectado");
+  renderDeviceStatuses();
   renderAudioStatus({
     state: "idle",
     message: "Esperando cola de audio.",
@@ -802,24 +915,74 @@ function resetRoutineState() {
 }
 
 
-function setBookTestImposibleV2DeviceState(state, deviceLabel = "") {
-  routineState.deviceConnected = state === "connected";
-  routineState.deviceConnectionState = state;
+function setBookTestImposibleV2DeviceState(state, deviceLabel = "", sourceRole = "") {
+  const role = sourceRole || (deviceLabel === BTI_V2_Q5_DEVICE_NAME ? "q5Device" : "bookDevice");
+  const target = role === "q5Device" ? routineState.q5DeviceState : routineState.bookDeviceState;
+  target.connected = state === "connected";
+  target.connecting = state === "connecting";
 
   if (state === "connected") {
-    renderDeviceStatus(deviceLabel ? `Conectado (${deviceLabel})` : "Conectado");
-    updatePayloadStatus("MrCamerDev1.0 conectado. Esperando payload de libro (01 = Narnia: El sobrino del mago).", false);
-    return;
+logInfo(role === "q5Device" ? "[BTI_V2] Q5 device connected" : "[BTI_V2] Book device connected", "BLE");
   }
 
-  renderDeviceStatus("No conectado");
-  updatePayloadStatus("MrCamerDev1.0 desconectado. Selección previa conservada.", false);
+  if (routineState.selectionLocked) {
+    routineState.phase = BTI_V2_PHASES.LOCKED;
+  } else if (!routineState.bookDeviceState.connected) {
+    routineState.phase = BTI_V2_PHASES.WAIT_BOOK_DEVICE;
+  } else if (!routineState.q5DeviceState.connected) {
+    routineState.phase = BTI_V2_PHASES.WAIT_Q5_DEVICE;
+  } else {
+    routineState.phase = BTI_V2_PHASES.LISTENING;
+  }
+
+  renderDeviceStatuses();
+}
+
+function renderDeviceStatuses() {
+  renderDeviceStatus(formatDeviceState(routineState.bookDeviceState));
+  if (ui.q5DeviceStatusLabel) {
+    ui.q5DeviceStatusLabel.textContent = formatDeviceState(routineState.q5DeviceState);
+  }
+
+  if (ui.connectQ5Button) {
+    ui.connectQ5Button.disabled = !routineState.bookDeviceState.connected || routineState.q5DeviceState.connected || routineState.q5DeviceState.connecting;
+  }
+
+if (routineState.selectionLocked) {
+    updatePayloadStatus("Selección fijada / Show en curso.", false);
+  } else if (!routineState.bookDeviceState.connected) {
+    updatePayloadStatus("Conectá MrCamerDev1.0 para detectar el libro.", false);
+  } else if (!routineState.q5DeviceState.connected) {
+    updatePayloadStatus("MrCamerDev1.0 conectado. Ahora conectá MrCamerDev_Q5.", false);
+  } else {
+    updatePayloadStatus("Dispositivos conectados. Esperando libro y selección multiantena.", false);
+  }
+}
+
+function formatDeviceState(deviceState) {
+  let label = "pendiente";
+  if (deviceState.connecting) label = "conectando";
+  else if (deviceState.connected) label = "conectado";
+  else if (routineState.phase === BTI_V2_PHASES.ERROR) label = "error / desconectado";
+  return `${deviceState.deviceName}: ${label}`;
 }
 
 function renderDeviceStatus(label) {
-  if (ui.deviceStatusLabel) {
-    ui.deviceStatusLabel.textContent = label;
+if (ui.bookDeviceStatusLabel) {
+    ui.bookDeviceStatusLabel.textContent = label;
   }
+}
+
+function renderQ5Progress() {
+  if (!isQ5Complete(routineState.q5Slots)) {
+    const pending = [2, 3, 4, 5, 6].filter(antennaId => routineState.q5Slots[antennaId] == null).join(", ");
+    updatePayloadStatus(`Q5 esperando antenas: ${pending}.`, false);
+    return;
+  }
+  const { page, line } = getQ5PageLine(routineState.q5Slots);
+  ui.resolvedPage.textContent = String(page);
+  ui.resolvedLine.textContent = String(line);
+  updatePayloadStatus(routineState.currentBook ? `Q5 completo: pág ${page}, renglón ${line}.` : `Q5 completo: pág ${page}, renglón ${line}. Esperando libro.`, false);
 }
 
 function renderAudioStatus(statusPayload, detail = "") {
@@ -952,4 +1115,6 @@ window.bookTestImposibleV2Dev = {
   buildLineHash,
   sumMultiAntennaSlots,
   injectMultiAntennaSelectionFromUi,
+  normalizeQ5Value,
+  tryLockAndStartShow,
 };
