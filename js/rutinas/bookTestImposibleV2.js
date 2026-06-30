@@ -136,7 +136,15 @@ function bindMultiAntennaSimulatorEvents() {
     }
   });
   ui.multiAntennaInjectButton.addEventListener("click", injectMultiAntennaSelectionFromUi);
+  updateMultiAntennaSimulatorVisibility();
   logInfo("[SIM] Multiantena UX habilitada", "SIM");
+}
+
+function updateMultiAntennaSimulatorVisibility() {
+  if (!ui.multiAntennaSimCard) return;
+
+  const shouldShowSimulator = DEV_MULTIANTENNA_SIM_ENABLED && !routineState.selectionLocked;
+  ui.multiAntennaSimCard.toggleAttribute("hidden", !shouldShowSimulator);
 }
 
 function readMultiAntennaSlotsFromUi() {
@@ -341,6 +349,7 @@ async function tryLockAndStartShow() {
       lockedAt: Date.now(),
     };
     logInfo("[BTI_V2] Selection locked", "BLE");
+    updateMultiAntennaSimulatorVisibility();
     renderSelection(selection);
     updatePayloadStatus("Selección fijada / Show en curso.", false);
     renderDeviceStatuses();
@@ -912,6 +921,7 @@ function resetRoutineState() {
   clearSelectionView();
   renderLog();
   refreshAudioButtons();
+  updateMultiAntennaSimulatorVisibility();
 }
 
 

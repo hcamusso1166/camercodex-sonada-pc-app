@@ -930,10 +930,16 @@ function ensureBookTestConnectionRole(connectionInfo, antennaId) {
   if (!isBookTestImposibleView || !connectionInfo) return;
 
   const detectedRole = getRoleByAntennaId(antennaId);
-  if (detectedRole === "unknown" || connectionInfo.role === detectedRole) return;
+  if (detectedRole === "unknown") return;
 
-  connectionInfo.role = detectedRole;
-  const roleLabel = detectedRole === "primary" ? "Conectado" : "Conectado";
+const normalizedDetectedRole = isBookTestImposibleV2View
+    ? (detectedRole === "secondary" ? "q5Device" : "bookDevice")
+    : detectedRole;
+
+  if (connectionInfo.role === normalizedDetectedRole) return;
+
+  connectionInfo.role = normalizedDetectedRole;
+  const roleLabel = "Conectado";
   setBookTestLineState(detectedRole, roleLabel, "#24af37", formatBleReference(connectionInfo.device));
 }
 
@@ -1356,7 +1362,7 @@ const len = dataView.byteLength;
           flags: camerFlags,
           seq: camerSeq,
           deviceName: sourceConnection?.device?.name || "",
-          sourceRole: sourceConnection?.role === "q5Device" ? "q5Device" : "bookDevice",
+          sourceRole: ["q5Device", "secondary"].includes(sourceConnection?.role) ? "q5Device" : "bookDevice",
         });
       }
       break;  
