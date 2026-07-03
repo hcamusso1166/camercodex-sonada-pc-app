@@ -9,6 +9,16 @@
       "collection": "Las crónicas de Narnia",
       "isbn": "978-950-732-097-2",
       "language": "es"
-    }
+    },
+    {
+      "bookId": "narnia-el-leon-la-bruja-y-el-armario",
+      "tag": "02",
+      "title": "El león, la bruja y el armario",
+      "author": "C. S. Lewis",
+      "root": "books/narnia-el-leon-la-bruja-y-el-armario",
+      "collection": "Las crónicas de Narnia",
+      "isbn": "978-950-732-098-9",
+      "language": "es"
+}
   ]
 }
