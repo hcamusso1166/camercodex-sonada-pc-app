@@ -842,7 +842,7 @@ function shouldProcessAntennaForPolicy(antennaId, policy) {
     case ROUTINE_ANTENNA_TYPES.SECONDARY_ONLY:
       return antennaId >= 2 && antennaId <= 6;
     case ROUTINE_ANTENNA_TYPES.ALL:
-      return isPrimaryAntennaId(antennaId) || (antennaId >= 2 && antennaId <= 6);// Procesa antennaId principal (1/9) + 2..6
+      return isPrimaryAntennaId(antennaId) || (antennaId >= 2 && antennaId <= 6) || (currentView === "bookTestImposibleV2.html" && antennaId === 8);//Procesa antennaId principal (1/9) + 2..6 + BTI V2 usa antena 8 como gate
     default:
       return isPrimaryAntennaId(antennaId); //(1/9)
   }
@@ -922,7 +922,7 @@ function setBookTestLineState(role, statusText, color, refText = "") {
 
 function getRoleByAntennaId(antennaId) {
   if (isPrimaryAntennaId(antennaId)) return "primary";
-  if (antennaId >= 2 && antennaId <= 6) return "secondary";
+  if ((antennaId >= 2 && antennaId <= 6) || antennaId === 8) return "secondary";
   return "unknown";
 }
 

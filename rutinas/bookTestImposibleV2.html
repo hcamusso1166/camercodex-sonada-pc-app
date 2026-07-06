@@ -41,6 +41,7 @@
       <h2>BTI v2</h2>
       <p class="gray-label">Estado dispositivo libro: <strong id="bookDeviceStatusLabel">MrCamerDev1.0: pendiente</strong></p>
       <p class="gray-label">Estado dispositivo multiantena: <strong id="q5DeviceStatusLabel">MrCamerDev_Q5: pendiente</strong></p>
+      <p class="gray-label">Etapa: <strong id="phaseStatusLabel">Detección</strong></p>
       <p class="gray-label">Estado audio: <strong id="audioStatusLabel">detenido</strong></p>
       <div class="button-row">
         <button id="connectBleButton" class="button-primary connectButton">Conectar MrCamerDev1.0</button>
@@ -48,6 +49,7 @@
         <button id="disconnectBleButton" class="button-secondary disconnectButton">Desconectar</button>
         <button id="replayAudioButton" class="button-secondary">Replay</button>
         <button id="stopAudioButton" class="button-secondary">Stop</button>
+        <button id="newDetectionButton" class="button-secondary">Nueva detección</button>
       </div>
       <p class="gray-label" id="payloadStatus">Conectá MrCamerDev1.0 y acercá el payload del libro.</p>
     </div>
@@ -90,6 +92,8 @@
         </label>
       </div>
       <button id="injectMultiAntennaSelectionButton" class="button-secondary">Inyectar selección multiantena</button>
+      <button id="simulateAntenna8GateButton" class="button-secondary">Simular Antena 8 payload 02</button>
+      <button id="devResetFlowButton" class="button-secondary">Reiniciar flujo DEV</button>
     </div>
     
     <div class="card dark-card" id="logCard">
