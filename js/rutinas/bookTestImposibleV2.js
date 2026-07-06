@@ -165,7 +165,7 @@ function bindMultiAntennaSimulatorEvents() {
 function updateMultiAntennaSimulatorVisibility() {
   if (!ui.multiAntennaSimCard) return;
 
-  const shouldShowSimulator = DEV_MULTIANTENNA_SIM_ENABLED && !routineState.selectionLocked;
+  const shouldShowSimulator = DEV_MULTIANTENNA_SIM_ENABLED;
   ui.multiAntennaSimCard.toggleAttribute("hidden", !shouldShowSimulator);
 }
 
