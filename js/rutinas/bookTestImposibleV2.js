@@ -145,7 +145,7 @@ function bindMultiAntennaSimulatorEvents() {
   }
 
   if (!ui.multiAntennaSimCard || !ui.multiAntennaInjectButton || ui.multiAntennaSlotInputs.length !== DEV_MULTIANTENNA_DEFAULT_SLOTS.length) {
-    logError("[SIM][ERROR] Simulador multiantena incompleto en HTML.", "SIM");
+    logError("[MANUAL][ERROR] Elección manual multiantena incompleta en HTML.", "MANUAL");
     return;
   }
 
@@ -159,7 +159,7 @@ function bindMultiAntennaSimulatorEvents() {
   ui.simulateAntenna8GateButton?.addEventListener("click", () => simulateAntenna8GateFromDev());
   ui.devResetFlowButton?.addEventListener("click", resetBtiV2FlowForNewDetection);
   updateMultiAntennaSimulatorVisibility();
-  logInfo("[SIM] Multiantena UX habilitada", "SIM");
+  logInfo("[MANUAL] Elección manual multiantena habilitada", "MANUAL");
 }
 
 function updateMultiAntennaSimulatorVisibility() {
@@ -203,30 +203,30 @@ function validateMultiAntennaSlots(slots) {
 async function injectMultiAntennaSelectionFromUi() {
   const slots = readMultiAntennaSlotsFromUi();
   const slotsLabel = slots.map(slot => (slot == null ? "null" : String(slot))).join(",");
-  logInfo(`[SIM] Slots recibidos: [${slotsLabel}]`, "SIM");
+  logInfo(`[MANUAL] Slots recibidos: [${slotsLabel}]`, "MANUAL");
 
   const validationError = validateMultiAntennaSlots(slots);
   if (validationError) {
     const isInvalidSlots = validationError === "Slots inválidos";
     updatePayloadStatus(validationError, true);
-    logError(`[SIM][ERROR] ${validationError}`, "SIM");
+    logError(`[MANUAL][ERROR] ${validationError}`, "MANUAL");
     if (!isInvalidSlots) {
-      logError(`[SIM][ERROR] Rango permitido: page > 0, line 1..${MAX_LINE_NUMBER}. Suma de cartas clásica hasta ${MAX_LINE_CARD_SUM}.`, "SIM");
+      logError(`[MANUAL][ERROR] Rango permitido: page > 0, line 1..${MAX_LINE_NUMBER}. Suma de cartas clásica hasta ${MAX_LINE_CARD_SUM}.`, "MANUAL");
     }
     return;
   }
 
   const { page, line } = sumMultiAntennaSlots(slots);
-  logInfo(`[SIM] Selección calculada -> page=${page} line=${line}`, "SIM");
+  logInfo(`[MANUAL] Selección calculada -> page=${page} line=${line}`, "MANUAL");
   if (line > MAX_LINE_CARD_SUM) {
-    logInfo(`[SIM] Renglón ${line} supera suma clásica ${MAX_LINE_CARD_SUM}, permitido por máximo extendido ${MAX_LINE_NUMBER}.`, "SIM");
+    logInfo(`[MANUAL] Renglón ${line} supera suma clásica ${MAX_LINE_CARD_SUM}, permitido por máximo extendido ${MAX_LINE_NUMBER}.`, "MANUAL");
   }
-  logInfo("[SIM] Inyectando selección multiantena en flujo V2", "SIM");
+  logInfo("[MANUAL] Inyectando selección multiantena en flujo V2", "MANUAL");
 
-  updateQ5SlotsFromValues(slots, "UX_SIM_MULTI");
+  updateQ5SlotsFromValues(slots, "UX_MANUAL_ESCAPE");
     updatePayloadStatus(routineState.currentBook
-    ? "Selección multiantena DEV cargada. Simulá Antena 8 payload 02 para bloquear."
-    : "Selección multiantena DEV cargada. Esperando libro y Antena 8 payload 02.",
+    ? "Selección manual cargada. Usá Siguiente Audio ▶ para bloquear."
+    : "Selección manual cargada. Esperando libro y Siguiente Audio ▶.",
     false);
 }
 
