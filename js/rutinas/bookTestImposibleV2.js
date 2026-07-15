@@ -78,6 +78,7 @@ const ui = {
 };
 
 let showAudio;
+let detectionAudioState = createDetectionAudioState();
 
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", initBookTestImposibleV2Routine);
@@ -357,10 +358,9 @@ function handleQ5DevicePacket(normalizedPayload) {
 
   routineState.q5Slots[antennaId] = value;
   logInfo(`[BTI_V2] Q5 slot updated ${JSON.stringify({ antennaId, value })}`, "BLE");
+  maybeAnnounceQ5SlotDetected(antennaId);
   renderQ5Progress();
-  if (isQ5Complete(routineState.q5Slots)) {
-    logInfo("[BTI_V2] Q5 complete", "BLE");
-  }
+  maybeAnnounceQ5Complete();
 }
 
 function normalizeQ5Value(payload) {
@@ -380,13 +380,94 @@ function updateQ5SlotsFromValues(slots, source = "DEV") {
     if (Number.isInteger(value) && value >= 0) {
       routineState.q5Slots[antennaId] = value;
       logInfo(`[BTI_V2] Q5 slot updated ${JSON.stringify({ antennaId, value, source })}`, "BLE");
+      maybeAnnounceQ5SlotDetected(antennaId);
     }
   });
   renderQ5Progress();
+  maybeAnnounceQ5Complete();
 }
 
 function isQ5Complete(slots) {
   return [2, 3, 4, 5, 6].every(antennaId => slots[antennaId] != null);
+}
+
+function createDetectionAudioState() {
+  return {
+    announcedBookId: null,
+    announcedSlots: new Set(),
+    announcedQ5Complete: false,
+  };
+}
+
+function resetDetectionAudioState() {
+  detectionAudioState = createDetectionAudioState();
+}
+
+function maybeAnnounceDetectionBookTitle(resolvedBook) {
+  if (routineState.selectionLocked) return;
+  const bookId = resolvedBook?.bookId || resolvedBook?.id;
+  if (!bookId) return;
+  if (detectionAudioState.announcedBookId === bookId) {
+    logInfo("[BTI_V2] Skipping detection book audio because it was already announced", "AUDIO");
+    return;
+  }
+
+  detectionAudioState.announcedBookId = bookId;
+  logInfo("[BTI_V2] Detection audio: book title", "AUDIO");
+  playBtiV2DetectionBookTitleAudio(resolvedBook);
+}
+
+function maybeAnnounceQ5SlotDetected(antennaId) {
+  if (routineState.selectionLocked) return;
+  if (![2, 3, 4, 5, 6].includes(antennaId)) return;
+  if (detectionAudioState.announcedSlots.has(antennaId)) {
+    logInfo("[BTI_V2] Skipping detection slot audio because slot was already announced", "AUDIO");
+    return;
+  }
+
+  detectionAudioState.announcedSlots.add(antennaId);
+  logInfo(`[BTI_V2] Detection audio: slot detected ${JSON.stringify({ antennaId })}`, "AUDIO");
+  playBtiV2DetectionSlotAudio(antennaId);
+}
+
+function maybeAnnounceQ5Complete() {
+  if (routineState.selectionLocked) return;
+  if (detectionAudioState.announcedQ5Complete) {
+    logInfo("[BTI_V2] Skipping detection complete audio because Q5 was already announced", "AUDIO");
+    return;
+  }
+  if (!isQ5Complete(routineState.q5Slots)) return;
+
+  const { page, line } = getQ5PageLine(routineState.q5Slots);
+  detectionAudioState.announcedQ5Complete = true;
+  logInfo("[BTI_V2] Q5 complete", "BLE");
+  logInfo(`[BTI_V2] Detection audio: page and line ${JSON.stringify({ page, line })}`, "AUDIO");
+  playBtiV2DetectionPageLineAudio({ page, line });
+}
+
+function enqueueBtiV2DetectionAudio(queue, context = {}) {
+  showAudio?.enqueueAuxiliaryQueue?.(queue, context);
+}
+
+function playBtiV2DetectionBookTitleAudio(book) {
+  enqueueBtiV2DetectionAudio(showAudio?.buildDetectionBookTitleQueue?.(book) || [], {
+    errorPrefix: "[BTI_V2] Detection book title audio missing",
+    emptyMessage: "[BTI_V2] Detection book title audio missing",
+  });
+}
+
+function playBtiV2DetectionSlotAudio(antennaId) {
+  enqueueBtiV2DetectionAudio(showAudio?.buildDetectionSlotQueue?.(antennaId) || [], {
+    errorPrefix: `[BTI_V2] Detection slot audio missing for slot ${antennaId}`,
+    emptyMessage: `[BTI_V2] Detection slot audio missing for slot ${antennaId}`,
+  });
+}
+
+function playBtiV2DetectionPageLineAudio({ page, line }) {
+  enqueueBtiV2DetectionAudio(showAudio?.buildDetectionPageLineQueue?.({ page, line }) || [], {
+    errorPrefix: "[BTI_V2] Detection page and line audio missing",
+    emptyMessage: "[BTI_V2] Detection page and line audio missing",
+  });
 }
 
 function getQ5PageLine(slots) {
@@ -576,6 +657,7 @@ if (!routineState.selectionLocked && !isSameBook) {
   renderBookInfo(resolvedBook, bookCode);
   updatePayloadStatus(isQ5Complete(routineState.q5Slots) ? `Libro resuelto: ${resolvedBook.title}. Q5 completo. Esperando Antena 8 payload 02 para fijar.` : `Libro resuelto desde MrCamerDev1.0: ${resolvedBook.title}. Esperando selección multiantena.`, false);
   logInfo(`Libro resuelto para code '${bookCode}': ${resolvedBook.bookId}.`, "MAP");
+  maybeAnnounceDetectionBookTitle(resolvedBook);
 }
 
 async function handleDeviceSelectionEvent(selectionPayload) {
@@ -1084,6 +1166,7 @@ function extractSayLines(pageData) {
 }
 
 function resetRoutineState() {
+  resetDetectionAudioState();
   routineState.currentBook = null;
   routineState.currentSelection = null;
   routineState.phase = BTI_V2_PHASES.DETECCION;
@@ -1118,6 +1201,7 @@ function resetRoutineState() {
 
 function resetBtiV2FlowForNewDetection() {
   stopBtiV2AudioIfPlaying();
+  resetDetectionAudioState();
   routineState.currentBook = null;
   routineState.currentSelection = null;
   routineState.phase = BTI_V2_PHASES.DETECCION;

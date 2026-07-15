@@ -20,6 +20,7 @@
       this.status = "idle";
       this.lastStatusState = null;
       this.lastError = null;
+      this.auxiliaryQueueChain = Promise.resolve();
       this.classicPacing = {
         PAUSE_SHORT_MS: 350,
         PAUSE_MEDIUM_MS: 700,
@@ -178,6 +179,57 @@
       this.stop("Audio detenido para replay.", { emitStoppedState: true });
       await this.ensureStoppedState();
       await this.playQueue(this.lastPlayableQueue.map(item => ({ ...item })));
+    }
+
+    enqueueAuxiliaryQueue(queue, context = {}) {
+      const normalizedQueue = Array.isArray(queue)
+        ? queue.map(item => this.normalizeQueueItem(item)).filter(Boolean)
+        : [];
+      if (!normalizedQueue.length) {
+        this.log("WARN", context.emptyMessage || "[BTI_V2] Detection audio queue is empty.");
+        return this.auxiliaryQueueChain;
+      }
+      if (!this.audioEnabled) {
+        this.log("WARN", "Audio no habilitado aún. Se requiere interacción de usuario para feedback de detección.");
+        return this.auxiliaryQueueChain;
+      }
+
+      this.auxiliaryQueueChain = this.auxiliaryQueueChain
+        .catch(() => {})
+        .then(() => this.playAuxiliaryQueue(normalizedQueue, context));
+      return this.auxiliaryQueueChain;
+    }
+
+    async playAuxiliaryQueue(queue, context = {}) {
+      while (this.isPlaying || this.currentAudio || this.currentTimeoutId) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+
+      const token = ++this.playToken;
+      this.isPlaying = true;
+      this.emitStatus("playing", context.statusMessage || "Reproduciendo feedback de detección.");
+
+      for (let index = 0; index < queue.length; index += 1) {
+        if (token !== this.playToken) return;
+        const item = queue[index];
+        this.log("INFO", item.label || `Detection feedback ${index + 1}/${queue.length}`);
+        try {
+          if (item.type === "pause") {
+            await this.waitItem(item.ms, token);
+          } else if (item.type === "audio") {
+            await this.playItem(item, token);
+          }
+        } catch (error) {
+          this.lastError = error;
+          this.log("WARN", `${context.errorPrefix || "[BTI_V2] Detection audio missing"}: ${item.label || item.src}`);
+        }
+      }
+
+      if (token === this.playToken) {
+        this.isPlaying = false;
+        this.currentAudio = null;
+        this.emitStatus("idle", context.completedMessage || "Feedback de detección finalizado.");
+      }
     }
 
     getClassicTakeUrls(context) {
@@ -419,6 +471,35 @@
         { type: "pause", ms: 350, label: "pause:postshow-repeat-page-line" },
         { type: "audio", src: "../audios/audios_especiales/renglon.mp3", label: "[AUDIO] Post-show -> repeat Renglón" },
         ...this.buildAudioItemsFromSources(lineSequenceSources, `postshow:repeat-line:${lineSlug}`),
+      ];
+    }
+
+    buildDetectionBookTitleQueue(book) {
+      const bookId = book?.bookId || book?.id;
+      if (!bookId) return [];
+      return [
+        { type: "audio", src: `../books/${bookId}/audios/_meta/title.mp3`, label: "[BTI_V2] Detection audio: book title" },
+      ];
+    }
+
+    buildDetectionSlotQueue(slotNumber) {
+      const slot = Number(slotNumber);
+      if (!Number.isInteger(slot)) return [];
+      return [
+        { type: "audio", src: "../audios/audios_especiales/slot.mp3", label: `[BTI_V2] Detection audio: Slot ${slot}` },
+        { type: "pause", ms: 120, label: "pause:detection-slot-number" },
+        ...this.buildAudioItemsFromSources(this.buildNumberAudioSequence(slot), `detection:slot:${slot}`),
+      ];
+    }
+
+    buildDetectionPageLineQueue({ page, line } = {}) {
+      if (!Number.isInteger(Number(page)) || !Number.isInteger(Number(line))) return [];
+      return [
+        { type: "audio", src: "../audios/audios_especiales/pagina.mp3", label: "[BTI_V2] Detection audio: Página" },
+        ...this.buildAudioItemsFromSources(this.buildNumberAudioSequence(Number(page)), `detection:page:${page}`),
+        { type: "pause", ms: 250, label: "pause:detection-page-line" },
+        { type: "audio", src: "../audios/audios_especiales/renglon.mp3", label: "[BTI_V2] Detection audio: Renglón" },
+        ...this.buildAudioItemsFromSources(this.buildNumberAudioSequence(Number(line)), `detection:line:${line}`),
       ];
     }
 
