@@ -10,6 +10,7 @@ const DEV_MULTIANTENNA_DEFAULT_SLOTS = [20, 20, 4, 1, 5];
 const BTI_V2_BOOK_DEVICE_NAME = "MrCamerDev1.0";
 const BTI_V2_Q5_DEVICE_NAME = "MrCamerDev_Q5";
 const BTI_V2_ANTENNA8_DEBOUNCE_MS = 1200;
+const BTI_V2_Q5_ANTENNA_IDS = Object.freeze([2, 3, 4, 5, 6]);
 const BTI_V2_PHASES = Object.freeze({
   DETECCION: "DETECCION",
   RESOLUCION: "RESOLUCION",
@@ -269,7 +270,7 @@ function registrarBookTestImposibleV2(payload = {}) {
 function inferSourceRole(payload, normalizedPayload) {
   if (payload.deviceName === BTI_V2_Q5_DEVICE_NAME) return "q5Device";
   if (payload.deviceName === BTI_V2_BOOK_DEVICE_NAME) return "bookDevice";
-  if ([2, 3, 4, 5, 6].includes(normalizedPayload.antennaId)) return "q5Device";
+  if (BTI_V2_Q5_ANTENNA_IDS.includes(normalizedPayload.antennaId)) return "q5Device";
   return "bookDevice";
 }
 
@@ -346,7 +347,7 @@ const payloadLabel = normalizedPayload.rawValue || normalizedPayload.bookCode ||
 
 function handleQ5DevicePacket(normalizedPayload) {
   const antennaId = normalizedPayload.antennaId;
-  if (![2, 3, 4, 5, 6].includes(antennaId)) {
+  if (!BTI_V2_Q5_ANTENNA_IDS.includes(antennaId)) {
     return;
   }
 
@@ -357,7 +358,8 @@ function handleQ5DevicePacket(normalizedPayload) {
   }
 
   routineState.q5Slots[antennaId] = value;
-  logInfo(`[BTI_V2] Q5 slot updated ${JSON.stringify({ antennaId, value })}`, "BLE");
+  const slotNumber = getQ5SlotNumberFromAntennaId(antennaId);
+  logInfo(`[BTI_V2] Q5 slot updated ${JSON.stringify({ antennaId, slotNumber, value })}`, "BLE");
   maybeAnnounceQ5SlotDetected(antennaId);
   renderQ5Progress();
   maybeAnnounceQ5Complete();
@@ -375,11 +377,12 @@ function normalizeQ5Value(payload) {
 }
 
 function updateQ5SlotsFromValues(slots, source = "DEV") {
-  [2, 3, 4, 5, 6].forEach((antennaId, index) => {
+  BTI_V2_Q5_ANTENNA_IDS.forEach((antennaId, index) => {
     const value = slots[index];
     if (Number.isInteger(value) && value >= 0) {
       routineState.q5Slots[antennaId] = value;
-      logInfo(`[BTI_V2] Q5 slot updated ${JSON.stringify({ antennaId, value, source })}`, "BLE");
+      const slotNumber = getQ5SlotNumberFromAntennaId(antennaId);
+      logInfo(`[BTI_V2] Q5 slot updated ${JSON.stringify({ antennaId, slotNumber, value, source })}`, "BLE");
       maybeAnnounceQ5SlotDetected(antennaId);
     }
   });
@@ -388,7 +391,12 @@ function updateQ5SlotsFromValues(slots, source = "DEV") {
 }
 
 function isQ5Complete(slots) {
-  return [2, 3, 4, 5, 6].every(antennaId => slots[antennaId] != null);
+  return BTI_V2_Q5_ANTENNA_IDS.every(antennaId => slots[antennaId] != null);
+}
+
+function getQ5SlotNumberFromAntennaId(antennaId) {
+  if (!BTI_V2_Q5_ANTENNA_IDS.includes(antennaId)) return null;
+  return antennaId - 1;
 }
 
 function createDetectionAudioState() {
@@ -419,15 +427,16 @@ function maybeAnnounceDetectionBookTitle(resolvedBook) {
 
 function maybeAnnounceQ5SlotDetected(antennaId) {
   if (routineState.selectionLocked) return;
-  if (![2, 3, 4, 5, 6].includes(antennaId)) return;
+  if (!BTI_V2_Q5_ANTENNA_IDS.includes(antennaId)) return;
   if (detectionAudioState.announcedSlots.has(antennaId)) {
     logInfo("[BTI_V2] Skipping detection slot audio because slot was already announced", "AUDIO");
     return;
   }
 
+  const slotNumber = getQ5SlotNumberFromAntennaId(antennaId);
   detectionAudioState.announcedSlots.add(antennaId);
-  logInfo(`[BTI_V2] Detection audio: slot detected ${JSON.stringify({ antennaId })}`, "AUDIO");
-  playBtiV2DetectionSlotAudio(antennaId);
+  logInfo(`[BTI_V2] Detection audio: slot detected ${JSON.stringify({ antennaId, slotNumber })}`, "AUDIO");
+  playBtiV2DetectionSlotAudio(slotNumber);
 }
 
 function maybeAnnounceQ5Complete() {
@@ -456,10 +465,10 @@ function playBtiV2DetectionBookTitleAudio(book) {
   });
 }
 
-function playBtiV2DetectionSlotAudio(antennaId) {
-  enqueueBtiV2DetectionAudio(showAudio?.buildDetectionSlotQueue?.(antennaId) || [], {
-    errorPrefix: `[BTI_V2] Detection slot audio missing for slot ${antennaId}`,
-    emptyMessage: `[BTI_V2] Detection slot audio missing for slot ${antennaId}`,
+function playBtiV2DetectionSlotAudio(slotNumber) {
+  enqueueBtiV2DetectionAudio(showAudio?.buildDetectionSlotQueue?.(slotNumber) || [], {
+    errorPrefix: `[BTI_V2] Detection slot audio missing for slot ${slotNumber}`,
+    emptyMessage: `[BTI_V2] Detection slot audio missing for slot ${slotNumber}`,
   });
 }
 
@@ -1298,7 +1307,7 @@ if (ui.bookDeviceStatusLabel) {
 
 function renderQ5Progress() {
   if (!isQ5Complete(routineState.q5Slots)) {
-    const pending = [2, 3, 4, 5, 6].filter(antennaId => routineState.q5Slots[antennaId] == null).join(", ");
+    const pending = BTI_V2_Q5_ANTENNA_IDS.filter(antennaId => routineState.q5Slots[antennaId] == null).join(", ");
     updatePayloadStatus(`Q5 esperando antenas: ${pending}.`, false);
     return;
   }
