@@ -441,6 +441,46 @@
       return this.buildClassicQueueFromTakes(takes);
     }
 
+    playClassicReadingTwoTakes(context, takes) {
+      void context;
+      const pacing = this.classicPacing;
+      const hasP4 = Boolean(takes.p4);
+      const buildTake = (takeNumber, pauseMs) => [
+        { type: "audio", src: takes.p1, label: `Take ${takeNumber} / p1` },
+        { type: "pause", ms: pauseMs, label: `pause:t${takeNumber}:p1-p2` },
+        { type: "audio", src: takes.p2, label: `Take ${takeNumber} / p2` },
+        { type: "pause", ms: pauseMs, label: `pause:t${takeNumber}:p2-p3` },
+        { type: "audio", src: takes.p3, label: `Take ${takeNumber} / p3` },
+        ...(hasP4
+          ? [
+            { type: "pause", ms: pauseMs, label: `pause:t${takeNumber}:p3-p4` },
+            { type: "audio", src: takes.p4, label: `Take ${takeNumber} / p4` },
+          ]
+          : []),
+      ];
+
+      return [
+        ...buildTake(1, pacing.PAUSE_SHORT_MS),
+        { type: "pause", ms: pacing.BETWEEN_TAKE_1_2_MS, label: "pause:t1-t2" },
+        ...buildTake(2, pacing.PAUSE_MEDIUM_MS),
+      ];
+    }
+
+    buildResolutionBookPageLineOnceQueue(context) {
+      const pageSlug = this.pad3(context.pageNumber);
+      const lineSlug = this.pad3(context.playbackLineNumber);
+      const lineAnnouncement = this.buildLineAnnouncement(context);
+      return [
+        { type: "audio", src: `../books/${context.bookId}/audios/_meta/title.mp3`, label: "[BTI_V2] Resolution -> title" },
+        { type: "pause", ms: 350, label: "pause:resolution-title-page" },
+        { type: "audio", src: "../audios/audios_especiales/pagina.mp3", label: "[BTI_V2] Resolution -> Página" },
+        ...this.buildAudioItemsFromSources(this.buildNumberAudioSequence(context.pageNumber), `resolution:page:${pageSlug}`),
+        { type: "pause", ms: 350, label: "pause:resolution-page-line" },
+        { type: "audio", src: "../audios/audios_especiales/renglon.mp3", label: "[BTI_V2] Resolution -> Renglón" },
+        ...this.buildAudioItemsFromSources(lineAnnouncement.sources, `resolution:line:${lineSlug}`),
+      ];
+    }
+
     buildPostShowQueue(context) {
       const pageSlug = this.pad3(context.pageNumber);
       const lineSlug = this.pad3(context.playbackLineNumber);

@@ -18,8 +18,8 @@ const BTI_V2_PHASES = Object.freeze({
   PLAYING_SELECTED_LINE: "PLAYING_SELECTED_LINE",
   WAITING_GATE_FOR_LINE_PLUS_1: "WAITING_GATE_FOR_LINE_PLUS_1",
   PLAYING_LINE_PLUS_1: "PLAYING_LINE_PLUS_1",
-  WAITING_GATE_FOR_LINE_PLUS_2: "WAITING_GATE_FOR_LINE_PLUS_2",
-  PLAYING_FINAL_LINES: "PLAYING_FINAL_LINES",
+  WAITING_GATE_FOR_ENCORE_FINAL: "WAITING_GATE_FOR_ENCORE_FINAL",
+  ENCORE_FINAL: "ENCORE_FINAL",
   WAIT_BOOK_DEVICE: "WAIT_BOOK_DEVICE",
   WAIT_Q5_DEVICE: "WAIT_Q5_DEVICE",
   LISTENING: "LISTENING",
@@ -357,10 +357,11 @@ function handleQ5DevicePacket(normalizedPayload) {
     return;
   }
 
+  const previousValue = routineState.q5Slots[antennaId];
   routineState.q5Slots[antennaId] = value;
   const slotNumber = getQ5SlotNumberFromAntennaId(antennaId);
-  logInfo(`[BTI_V2] Q5 slot updated ${JSON.stringify({ antennaId, slotNumber, value })}`, "BLE");
-  maybeAnnounceQ5SlotDetected(antennaId);
+  logInfo(`[BTI_V2] Q5 slot updated ${JSON.stringify({ antennaId, slotNumber, previousValue, value })}`, "BLE");
+  maybeAnnounceQ5SlotDetected(antennaId, value);
   renderQ5Progress();
   maybeAnnounceQ5Complete();
 }
@@ -380,10 +381,11 @@ function updateQ5SlotsFromValues(slots, source = "DEV") {
   BTI_V2_Q5_ANTENNA_IDS.forEach((antennaId, index) => {
     const value = slots[index];
     if (Number.isInteger(value) && value >= 0) {
+      const previousValue = routineState.q5Slots[antennaId];
       routineState.q5Slots[antennaId] = value;
       const slotNumber = getQ5SlotNumberFromAntennaId(antennaId);
-      logInfo(`[BTI_V2] Q5 slot updated ${JSON.stringify({ antennaId, slotNumber, value, source })}`, "BLE");
-      maybeAnnounceQ5SlotDetected(antennaId);
+      logInfo(`[BTI_V2] Q5 slot updated ${JSON.stringify({ antennaId, slotNumber, previousValue, value, source })}`, "BLE");
+      maybeAnnounceQ5SlotDetected(antennaId, value);
     }
   });
   renderQ5Progress();
@@ -401,9 +403,9 @@ function getQ5SlotNumberFromAntennaId(antennaId) {
 
 function createDetectionAudioState() {
   return {
-    announcedBookId: null,
-    announcedSlots: new Set(),
-    announcedQ5Complete: false,
+    lastAnnouncedBookId: null,
+    announcedSlotValues: new Map(),
+    lastAnnouncedPageLineKey: null,
   };
 }
 
@@ -415,41 +417,42 @@ function maybeAnnounceDetectionBookTitle(resolvedBook) {
   if (routineState.selectionLocked) return;
   const bookId = resolvedBook?.bookId || resolvedBook?.id;
   if (!bookId) return;
-  if (detectionAudioState.announcedBookId === bookId) {
+  if (detectionAudioState.lastAnnouncedBookId === bookId) {
     logInfo("[BTI_V2] Skipping detection book audio because it was already announced", "AUDIO");
     return;
   }
 
-  detectionAudioState.announcedBookId = bookId;
+  detectionAudioState.lastAnnouncedBookId = bookId;
   logInfo("[BTI_V2] Detection audio: book title", "AUDIO");
   playBtiV2DetectionBookTitleAudio(resolvedBook);
 }
 
-function maybeAnnounceQ5SlotDetected(antennaId) {
+function maybeAnnounceQ5SlotDetected(antennaId, value) {
   if (routineState.selectionLocked) return;
   if (!BTI_V2_Q5_ANTENNA_IDS.includes(antennaId)) return;
-  if (detectionAudioState.announcedSlots.has(antennaId)) {
-    logInfo("[BTI_V2] Skipping detection slot audio because slot was already announced", "AUDIO");
+  const slotNumber = getQ5SlotNumberFromAntennaId(antennaId);
+  if (detectionAudioState.announcedSlotValues.get(slotNumber) === value) {
+    logInfo(`[BTI_V2] Skipping detection slot audio because slot value was already announced ${JSON.stringify({ antennaId, slotNumber, value })}`, "AUDIO");
     return;
   }
 
-  const slotNumber = getQ5SlotNumberFromAntennaId(antennaId);
-  detectionAudioState.announcedSlots.add(antennaId);
-  logInfo(`[BTI_V2] Detection audio: slot detected ${JSON.stringify({ antennaId, slotNumber })}`, "AUDIO");
+  detectionAudioState.announcedSlotValues.set(slotNumber, value);
+  logInfo(`[BTI_V2] Detection audio: slot detected ${JSON.stringify({ antennaId, slotNumber, value })}`, "AUDIO");
   playBtiV2DetectionSlotAudio(slotNumber);
 }
 
 function maybeAnnounceQ5Complete() {
   if (routineState.selectionLocked) return;
-  if (detectionAudioState.announcedQ5Complete) {
-    logInfo("[BTI_V2] Skipping detection complete audio because Q5 was already announced", "AUDIO");
-    return;
-  }
   if (!isQ5Complete(routineState.q5Slots)) return;
 
   const { page, line } = getQ5PageLine(routineState.q5Slots);
-  detectionAudioState.announcedQ5Complete = true;
-  logInfo("[BTI_V2] Q5 complete", "BLE");
+  const pageLineKey = `${page}:${line}`;
+  if (detectionAudioState.lastAnnouncedPageLineKey === pageLineKey) {
+    logInfo(`[BTI_V2] Skipping detection page/line audio because values were already announced ${JSON.stringify({ page, line })}`, "AUDIO");
+    return;
+  }
+  detectionAudioState.lastAnnouncedPageLineKey = pageLineKey;
+  logInfo(`[BTI_V2] Q5 complete ${JSON.stringify({ page, line })}`, "BLE");
   logInfo(`[BTI_V2] Detection audio: page and line ${JSON.stringify({ page, line })}`, "AUDIO");
   playBtiV2DetectionPageLineAudio({ page, line });
 }
@@ -522,7 +525,7 @@ async function handleDetectionFinishGate() {
     renderSelection(selection);
     updatePayloadStatus("Selección fijada. Reproduciendo libro, página y renglón.", false);
     renderDeviceStatuses();
-    logInfo("[BTI_V2] Playing resolution audio: book/page/line", "AUDIO");
+    logInfo("[BTI_V2] Playing resolution audio: book/page/line once", "AUDIO");
     await playResolutionAudio(selection);
     routineState.phase = BTI_V2_PHASES.WAITING_GATE_FOR_SELECTED_LINE;
     logInfo("[BTI_V2] Waiting antenna 8 for selected line", "BLE");
@@ -547,7 +550,7 @@ async function handleAntenna8Gate() {
   }
   if (routineState.phase === BTI_V2_PHASES.WAITING_GATE_FOR_SELECTED_LINE) {
     routineState.phase = BTI_V2_PHASES.PLAYING_SELECTED_LINE;
-    logInfo("[BTI_V2] Playing selected line", "AUDIO");
+    logInfo("[BTI_V2] Playing selected line twice", "AUDIO");
     renderDeviceStatuses();
     await playLineAudio(selection, 0);
     routineState.phase = BTI_V2_PHASES.WAITING_GATE_FOR_LINE_PLUS_1;
@@ -558,22 +561,21 @@ async function handleAntenna8Gate() {
   }
   if (routineState.phase === BTI_V2_PHASES.WAITING_GATE_FOR_LINE_PLUS_1) {
     routineState.phase = BTI_V2_PHASES.PLAYING_LINE_PLUS_1;
-    logInfo("[BTI_V2] Playing line +1", "AUDIO");
+    logInfo("[BTI_V2] Playing line +1 twice", "AUDIO");
     renderDeviceStatuses();
     await playLineAudio(selection, 1);
-    routineState.phase = BTI_V2_PHASES.WAITING_GATE_FOR_LINE_PLUS_2;
-    logInfo("[BTI_V2] Waiting antenna 8 for final lines", "BLE");
-    updatePayloadStatus("Esperando Antena 8 para reproducir renglones +2 y +3.", false);
+    routineState.phase = BTI_V2_PHASES.WAITING_GATE_FOR_ENCORE_FINAL;
+    logInfo("[BTI_V2] Waiting antenna 8 for Encore Final", "BLE");
+    updatePayloadStatus("Esperando Antena 8 para Encore Final.", false);
     renderDeviceStatuses();
     return;
   }
-  if (routineState.phase === BTI_V2_PHASES.WAITING_GATE_FOR_LINE_PLUS_2) {
-    routineState.phase = BTI_V2_PHASES.PLAYING_FINAL_LINES;
-    logInfo("[BTI_V2] Playing line +2 and line +3", "AUDIO");
+  if (routineState.phase === BTI_V2_PHASES.WAITING_GATE_FOR_ENCORE_FINAL) {
+    routineState.phase = BTI_V2_PHASES.ENCORE_FINAL;
     renderDeviceStatuses();
-    await playFinalLinesAudio(selection);
+    logInfo("Encore Final, lectura mental de la imagen visualizada", "BTI_V2");
     routineState.phase = BTI_V2_PHASES.COMPLETE;
-    logInfo("[BTI_V2] Sequence complete", "AUDIO");
+    logInfo("Sequence complete", "BTI_V2");
     updatePayloadStatus("Secuencia finalizada. Selección fijada. Podés repetir, detener o iniciar una nueva detección.", false);
     renderDeviceStatuses();
     return;
@@ -589,12 +591,12 @@ function buildLineQueue(selection, offset = 0) {
   }
   const context = showAudio.resolveReadingContext(selection.book.bookId, selection.pageNumber, line);
   const takes = showAudio.getClassicTakeUrls(context);
-  return showAudio.playClassicReadingThreeTakes(context, takes);
+  return showAudio.playClassicReadingTwoTakes(context, takes);
 }
 
 function buildResolutionQueue(selection) {
   const context = showAudio.resolveReadingContext(selection.book.bookId, selection.pageNumber, selection.lineNumber);
-  return showAudio.buildPostShowQueue(context);
+  return showAudio.buildResolutionBookPageLineOnceQueue(context);
 }
 
 async function playQueueItems(queue, emptyMessage = "No hay audios disponibles para reproducir.") {
@@ -614,14 +616,6 @@ async function playLineAudio(selection, offset) {
   await playQueueItems(buildLineQueue(selection, offset), `No hay audios disponibles para el renglón +${offset}.`);
 }
 
-async function playFinalLinesAudio(selection) {
-  const queue = [
-    ...buildLineQueue(selection, 2),
-    ...buildLineQueue(selection, 3),
-  ];
-  await playQueueItems(queue, "No hay audios disponibles para los renglones finales.");
-}
-
 async function replayLockedSelection() {
   const selection = routineState.lockedSelection?.resolved;
   if (!selection) {
@@ -633,10 +627,12 @@ async function replayLockedSelection() {
     ...buildResolutionQueue(selection),
     ...buildLineQueue(selection, 0),
     ...buildLineQueue(selection, 1),
-    ...buildLineQueue(selection, 2),
-    ...buildLineQueue(selection, 3),
   ];
   await playQueueItems(queue, "No hay cola disponible para Replay.");
+    if (showAudio?.status === "completed") {
+    logInfo("Encore Final, lectura mental de la imagen visualizada", "BTI_V2");
+    logInfo("Sequence complete", "BTI_V2");
+  }
 }
 
 function stopBtiV2AudioIfPlaying() {
@@ -648,19 +644,23 @@ function stopBtiV2AudioIfPlaying() {
 
 function handleBookPayload(bookCode) {
   const resolvedBook = resolveBookByDeviceCode(bookCode);
-  const isSameBook = routineState.currentBook?.bookId === resolvedBook?.bookId;
-  routineState.currentBook = resolvedBook;
-if (!routineState.selectionLocked && !isSameBook) {
-    routineState.currentSelection = null;
-    clearSelectionView();
-  }
-
   if (!resolvedBook) {
     const errorMessage = `No se pudo mapear bookCode '${bookCode}'.`;
     updatePayloadStatus(errorMessage, true);
     renderBookInfo(null, bookCode);
     logError(errorMessage, "MAP");
     return;
+  }
+
+    const previousBookId = routineState.currentBook?.bookId || null;
+  const isSameBook = previousBookId === resolvedBook.bookId;
+  routineState.currentBook = resolvedBook;
+  if (!routineState.selectionLocked && !isSameBook) {
+    routineState.currentSelection = null;
+    clearSelectionView();
+    if (previousBookId) {
+      logInfo(`[BTI_V2] Book changed during detection ${JSON.stringify({ previousBookId, newBookId: resolvedBook.bookId })}`, "MAP");
+    }
   }
 
   renderBookInfo(resolvedBook, bookCode);
@@ -1283,8 +1283,8 @@ function renderPhaseStatus() {
     [BTI_V2_PHASES.PLAYING_SELECTED_LINE]: "Reproduciendo",
     [BTI_V2_PHASES.WAITING_GATE_FOR_LINE_PLUS_1]: "Esperando avance",
     [BTI_V2_PHASES.PLAYING_LINE_PLUS_1]: "Reproduciendo",
-    [BTI_V2_PHASES.WAITING_GATE_FOR_LINE_PLUS_2]: "Esperando avance",
-    [BTI_V2_PHASES.PLAYING_FINAL_LINES]: "Reproduciendo",
+    [BTI_V2_PHASES.WAITING_GATE_FOR_ENCORE_FINAL]: "Esperando avance",
+    [BTI_V2_PHASES.ENCORE_FINAL]: "Encore Final",
     [BTI_V2_PHASES.COMPLETE]: "Finalizado",
     [BTI_V2_PHASES.ERROR]: "Error",
   };
