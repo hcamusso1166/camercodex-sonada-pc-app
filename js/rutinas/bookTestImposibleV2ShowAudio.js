@@ -632,8 +632,11 @@
           ? ["200"]
           : ["200", ...this.buildNumberAudioTokens(remainder)];
       }
-      if (number < 400 && number % 100 === 0) {
-        return [String(number)];
+      if (number < 400) {
+        const remainder = number % 100;
+        return remainder === 0
+          ? ["300"]
+          : ["300", ...this.buildNumberAudioTokens(remainder)];
       }
 
       return [String(number)];
