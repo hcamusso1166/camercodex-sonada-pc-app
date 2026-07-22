@@ -20,5 +20,11 @@
     "FUE UNA COMIDA MÁS QUE LIGERA, ¡Y ESO QUE COMIE-",
     "RON TAMBIÉN ALGÚN TROCITO DE PAPEL QUE NO PUDIE-",
     "RON DESPEGAR!"
+  ],
+  "images": [
+    {
+      "imageId": "image-001",
+      "description": "CABALLO ALADO CUBRIENDO CON UN ALA A UN NIÑO."
+    }
   ]
 }

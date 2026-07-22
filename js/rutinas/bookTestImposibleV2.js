@@ -29,6 +29,19 @@ const BTI_V2_PHASES = Object.freeze({
   ERROR: "ERROR",
 });
 
+/**
+ * @typedef {Object} PageImage
+ * @property {string} imageId
+ * @property {string} description
+ *
+ * @typedef {Object} PageData
+ * @property {number} page
+ * @property {string} bookId
+ * @property {number} lineCount
+ * @property {string[]} sayLines
+ * @property {PageImage[]} images
+ */
+
 const routineState = {
   books: [],
   currentBook: null,
@@ -811,6 +824,7 @@ if (line > MAX_LINE_NUMBER) {
   const pageData = await loadJson(pagePath, `No se pudo cargar la página ${page}`);
 
   const sayLines = extractSayLines(pageData);
+  const images = extractPageImages(pageData);
   if (!sayLines.length) {
     throw new Error(`La página ${page} no contiene líneas SAY utilizables.`);
   }
@@ -844,6 +858,7 @@ if (line > MAX_LINE_NUMBER) {
     lineNumber: normalizedLine,
     selectedLine: sayLines[lineIndex],
     sayLines,
+    images,
     windowLines,
     pageHash,
     lineHash,
@@ -1007,6 +1022,16 @@ function buildLineTakeCandidates(bookId, page, line, part) {
   ];
 }
 
+function buildImageTakePath(bookId, page, imageId, part) {
+  return `${bookId}/audios/page-${pad3(page)}/images/${imageId}_${part}.mp3`;
+}
+
+function buildImageTakeCandidates(bookId, page, imageId, part) {
+  return [
+    `../books/${buildImageTakePath(bookId, page, imageId, part)}`,
+  ];
+}
+
 async function resolveFirstExisting(candidates, assetExistsChecker) {
   for (const candidate of candidates) {
     if (await assetExistsChecker(candidate)) {
@@ -1030,6 +1055,24 @@ async function resolveLocalLineTakes(bookId, page, line, assetExistsChecker) {
         break;
       }
     }
+
+    if (!found) {
+      return [];
+    }
+
+    resolved.push(found);
+  }
+
+  return resolved;
+}
+
+async function resolveLocalImageTakes(bookId, page, imageId, assetExistsChecker) {
+  const parts = ["p1", "p2", "p3"];
+  const resolved = [];
+
+  for (const part of parts) {
+    const candidates = buildImageTakeCandidates(bookId, page, imageId, part);
+    const found = await resolveFirstExisting(candidates, assetExistsChecker);
 
     if (!found) {
       return [];
@@ -1170,6 +1213,29 @@ function extractSayLines(pageData) {
         return (item.text || item.content || item.line || "").trim();
       }
       return "";
+    })
+    .filter(Boolean);
+}
+
+function extractPageImages(pageData) {
+  if (!Array.isArray(pageData?.images)) {
+    return [];
+  }
+
+  return pageData.images
+    .map(item => {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+
+      const imageId = typeof item.imageId === "string" ? item.imageId.trim() : "";
+      const description = typeof item.description === "string" ? item.description.trim() : "";
+
+      if (!imageId || !description) {
+        return null;
+      }
+
+      return { imageId, description };
     })
     .filter(Boolean);
 }
@@ -1446,6 +1512,10 @@ window.bookTestImposibleV2Dev = {
   buildPageHash,
   buildWindowHash,
   buildLineHash,
+  extractPageImages,
+  buildImageTakePath,
+  buildImageTakeCandidates,
+  resolveLocalImageTakes,
   sumMultiAntennaSlots,
   injectMultiAntennaSelectionFromUi,
   normalizeQ5Value,

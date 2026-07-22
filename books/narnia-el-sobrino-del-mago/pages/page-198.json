@@ -22,5 +22,11 @@
     "COMO TÚ EN EL LOMO ANTES. HACE MUCHO, MUCHO",
     "TIEMPO. CUANDO HABÍA CAMPOS DE PASTOS Y TERRO-",
     "NES DE AZÚCAR."
+  ],
+  "images": [
+    {
+      "imageId": "image-001",
+      "description": "SECUENCIA DE 5 CABALLOS AL QUE LE SALEN ALAS"
+    }
   ]
 }

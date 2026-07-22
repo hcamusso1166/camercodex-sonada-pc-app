@@ -21,5 +21,14 @@
     "SÓ QUE SE TRATABA DE ÁRBOLES. LAS",
     "RANAS, QUE SURGIERON TODAS CERCA",
     "DEL RÍO, FUERON DIRECTAS A ÉSTE CON"
+  ],
+  "images": [{
+      "imageId": "image-001",
+      "description": "UNA MADRIGUERA DONDE NACE UN CIERVO, A LA IZQUIERDA DOS PERROS, A LA DERECHA UN TOPO Y UN AVE VOLANDO"
+    },
+    {
+      "imageId": "image-002",
+      "description": "UNA MADRIGUERA CON DOS TOPOS"
+    }
   ]
 }

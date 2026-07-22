@@ -21,5 +21,11 @@
     "CO—, ¿ES USTED ANIMAL, VEGETAL O MINERAL?",
     "ESO FUE LO QUE DIJO REALMENTE; PERO TODO LO QUE",
     "EL TÍO ANDREW OYÓ FUE \"¡GRRRRR!\"."
+  ],
+  "images": [
+    {
+      "imageId": "image-001",
+      "description": "ALCE, ELEFANTE, OSOS, JABALÍES, PANTERAS."
+    }
   ]
 }

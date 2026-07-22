@@ -16,5 +16,11 @@
     "TA A PRIMERA VISTA DE QUE NO POSEES NI UNA GOTA DE",
     "SANGRE REAL O NOBLE EN TUS VENAS. ¿CÓMO SE HA ATRE-",
     "VIDO ALGUIEN COMO TÚ A ENTRAR EN ESTA CASA?"
+  ],
+  "images": [
+    {
+      "imageId": "image-001",
+      "description": "UNA REINA MALVADA, LOS NIÑOS AL CENTRO, LOS REYES SENTADOS A LA IZQUIERDA"
+    }
   ]
 }

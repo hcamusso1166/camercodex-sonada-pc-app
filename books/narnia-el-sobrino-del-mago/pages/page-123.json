@@ -21,5 +21,11 @@
     "—¡YA LO CREO, JEFE! —DIJO UN MIEMBRO DE LA MUL-",
     "TITUD—. ¡MENUDA OBRA DE ARTE LE HA HECHO EN ESE",
     "OJO! ¡VAYA! ¡SÍ QUE ES FUERTE!"
-]
+  ],
+  "images": [
+    {
+      "imageId": "image-001",
+      "description": "TÍO ANDREW CON GALERA, TRES OFICIALES A SU IZQUIERDA, UN SEÑOR GORDO MAS A LA IZQUIERDA"
+    }
+  ]
 }

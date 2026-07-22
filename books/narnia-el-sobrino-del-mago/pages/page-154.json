@@ -30,5 +30,11 @@
     "UNA OLLA? PUES ÉSTA ES LA MEJOR DES-",
     "CRIPCIÓN DE LO QUE ESTABA SUCEDIEN-",
     "DO. EL TERRENO SE IBA LLENANDO DE"
+  ],
+  "images": [
+    {
+      "imageId": "image-001",
+      "description": "UNA PEQUEÑA MADRIGUERA DE TOPO"
+    }
   ]
 }
