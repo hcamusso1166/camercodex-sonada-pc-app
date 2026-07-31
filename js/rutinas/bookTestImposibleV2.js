@@ -58,7 +58,8 @@ const routineState = {
   lockedSelection: null,
   currentGateStep: 0,
   imageEncore: null,
-  imageEncorePagesCache: new Map(),
+  preparedImageEncore: null,
+  preparedImageAudioPath: null,
   imageEncoreTriggerConsumed: false,
   lastAntenna8GateAt: 0,
   ignoredLockedPacketLogged: false,
@@ -539,6 +540,7 @@ async function handleDetectionFinishGate() {
       resolved: selection,
       lockedAt: Date.now(),
     };
+    prepareImageEncore(selection);
     logInfo("[BTI_V2] Detection completed by antenna 8", "BLE");
     logInfo("[BTI_V2] Selection locked", "BLE");
     updateMultiAntennaSimulatorVisibility();
@@ -617,18 +619,16 @@ async function startImageEncore(selection) {
   logInfo(`[IMAGE-ENCORE] book=${bookId} sourcePage=${sourcePage}`, "BTI_V2");
 
   try {
-    const pages = await loadImageEncorePagesForBook(selection.book);
-    const result = window.BookTestImposibleV2ImageEncore.resolveNextBookImage({
-      bookId,
-      selectedPage: sourcePage,
-      pages,
-      onWarning: message => logInfo(message, "BTI_V2"),
-    });
+    const triggerStartedAt = performance.now();
+    const prepared = routineState.preparedImageEncore;
+    const result = prepared?.bookId === bookId && prepared?.sourcePage === sourcePage
+      ? prepared
+      : prepareImageEncore(selection);
     routineState.imageEncore = result;
     renderImageEncore(result);
 
     if (!result.found) {
-      logInfo("[IMAGE-ENCORE] no image found after selected page", "BTI_V2");
+      logInfo(`[IMAGE-ENCORE] no image found book=${bookId} sourcePage=${sourcePage}`, "BTI_V2");
       routineState.phase = BTI_V2_PHASES.ROUTINE_FINISHED;
       updatePayloadStatus("ENCORE DE IMAGEN finalizado sin imagen posterior.", false);
       renderDeviceStatuses();
@@ -639,6 +639,7 @@ async function startImageEncore(selection) {
     logInfo(`[IMAGE-ENCORE] pageDistance=${result.numberedPageDistance} turnCount=${result.turnCount} navigation=${result.navigationType}`, "BTI_V2");
     routineState.phase = BTI_V2_PHASES.IMAGE_ENCORE_PLAYING;
     renderDeviceStatuses();
+    logInfo(`[IMAGE-ENCORE] triggerToPlayMs=${(performance.now() - triggerStartedAt).toFixed(2)}`, "BTI_V2");
     await playImageEncoreAudio(result);
     routineState.phase = BTI_V2_PHASES.ROUTINE_FINISHED;
     logInfo("[IMAGE-ENCORE] complete", "BTI_V2");
@@ -652,32 +653,30 @@ async function startImageEncore(selection) {
   }
 }
 
-async function loadImageEncorePagesForBook(book) {
-  const bookId = book?.bookId || book?.id;
-  if (!bookId) throw new Error("[IMAGE-ENCORE] Libro inválido para cargar páginas.");
-  if (routineState.imageEncorePagesCache.has(bookId)) {
-    return routineState.imageEncorePagesCache.get(bookId);
-  }
+function clearPreparedImageEncore() {
+  if (routineState.preparedImageAudioPath) showAudio?.clearPreloaded(routineState.preparedImageAudioPath);
+  routineState.preparedImageEncore = null;
+  routineState.preparedImageAudioPath = null;
+}
 
-  const bookMeta = await loadJson(`${normalizeRootPath(book.root)}/book.json`, `No se pudo cargar book.json de ${bookId}`);
-  const start = Number(bookMeta?.pages?.start);
-  const end = Number(bookMeta?.pages?.end);
-  if (!Number.isInteger(start) || !Number.isInteger(end) || end < start) {
-    throw new Error(`[IMAGE-ENCORE] Rango de páginas inválido para ${bookId}.`);
+  function prepareImageEncore(selection) {
+  clearPreparedImageEncore();
+  const bookId = selection?.book?.bookId || selection?.book?.id;
+  const sourcePage = Number(selection?.pageNumber);
+  const startedAt = performance.now();
+  logInfo(`[IMAGE-ENCORE] preparing book=${bookId} sourcePage=${sourcePage}`, "BTI_V2");
+  const result = window.BookTestImposibleV2ImageEncore.resolveIndexedBookImage({ bookId, sourcePage });
+  routineState.preparedImageEncore = result;
+  if (!result.found) {
+    logInfo(`[IMAGE-ENCORE] no image found book=${bookId} sourcePage=${sourcePage}`, "BTI_V2");
+    return result;
   }
-
-  const pages = [];
-  for (let page = start; page <= end; page += 1) {
-    try {
-      const pageData = await loadJson(buildPagePath(book, page), `No se pudo cargar la página ${page}`);
-      pages.push(window.BookTestImposibleV2ImageEncore.normalizeEncorePageData(pageData, message => logInfo(message, "BTI_V2")));
-    } catch (error) {
-      logInfo(`[IMAGE-ENCORE] warning: ${error.message}`, "BTI_V2");
-    }
-  }
-  pages.sort((a, b) => a.page - b.page);
-  routineState.imageEncorePagesCache.set(bookId, pages);
-  return pages;
+  const audioPath = `../books/${result.audio}`;
+  routineState.preparedImageAudioPath = audioPath;
+  showAudio?.preload(audioPath);
+  logInfo(`[IMAGE-ENCORE] prepared targetPage=${result.targetPage} imageId=${result.imageId} resolveMs=${(performance.now() - startedAt).toFixed(2)}`, "BTI_V2");
+  logInfo(`[IMAGE-ENCORE] audio preload requested path=${result.audio}`, "AUDIO");
+  return result;
 }
 
 async function playImageEncoreAudio(result) {
@@ -1376,6 +1375,7 @@ function resetRoutineState() {
   routineState.lockedSelection = null;
   routineState.currentGateStep = 0;
   routineState.imageEncore = null;
+  clearPreparedImageEncore();
   routineState.imageEncoreTriggerConsumed = false;
   routineState.lastAntenna8GateAt = 0;
   routineState.ignoredLockedPacketLogged = false;
@@ -1411,6 +1411,7 @@ function resetBtiV2FlowForNewDetection() {
   routineState.lockedSelection = null;
   routineState.currentGateStep = 0;
   routineState.imageEncore = null;
+  clearPreparedImageEncore();
   routineState.imageEncoreTriggerConsumed = false;
   routineState.lastAntenna8GateAt = 0;
   routineState.ignoredLockedPacketLogged = false;
@@ -1649,7 +1650,8 @@ window.bookTestImposibleV2Dev = {
   resolveNextBookImage: (...args) => window.BookTestImposibleV2ImageEncore.resolveNextBookImage(...args),
   resolveImageNavigation: (...args) => window.BookTestImposibleV2ImageEncore.resolveImageNavigation(...args),
   buildImageAudioPath: (...args) => window.BookTestImposibleV2ImageEncore.buildImageAudioPath(...args),
-  loadImageEncorePagesForBook,
+  prepareImageEncore,
+  clearPreparedImageEncore,
   buildImageTakeCandidates,
   resolveLocalImageTakes,
   sumMultiAntennaSlots,

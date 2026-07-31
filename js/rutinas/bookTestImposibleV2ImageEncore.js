@@ -130,6 +130,29 @@
     };
   }
 
+  function findNextBookImage(bookId, sourcePage, imageIndex = global.BOOK_IMAGE_INDEX || {}) {
+    const normalizedSourcePage = Number(sourcePage);
+    const images = Array.isArray(imageIndex?.[bookId]) ? imageIndex[bookId] : [];
+    return images.find(image => Number(image.page) >= normalizedSourcePage) || null;
+  }
+
+  function resolveIndexedBookImage({ bookId, sourcePage, imageIndex = global.BOOK_IMAGE_INDEX || {} }) {
+    const normalizedSourcePage = Number(sourcePage);
+    const image = findNextBookImage(bookId, normalizedSourcePage, imageIndex);
+    if (!image) {
+      return {
+        found: false, bookId, sourcePage: normalizedSourcePage,
+        navigationType: NAVIGATION_TYPES.NO_IMAGE_FOUND,
+        navigationText: buildImageNavigationText({ navigationType: NAVIGATION_TYPES.NO_IMAGE_FOUND }),
+      };
+    }
+    return {
+      found: true, ...image, sourcePage: normalizedSourcePage,
+      ...resolveImageNavigation({ sourcePage: normalizedSourcePage, targetPage: image.page }),
+      targetPage: image.page,
+    };
+  }
+
   function buildImageAudioPath({ bookId, page, imageId, take }) {
     return `${bookId}/audios/page-${pad3(page)}/images/${imageId}_${take}.mp3`;
   }
@@ -155,6 +178,8 @@
     resolveImageNavigation,
     buildImageNavigationText,
     resolveNextBookImage,
+    findNextBookImage,
+    resolveIndexedBookImage,
     buildImageAudioPath,
     buildImageAudioQueue,
   };

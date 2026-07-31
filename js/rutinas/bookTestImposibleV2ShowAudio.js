@@ -21,6 +21,7 @@
       this.lastStatusState = null;
       this.lastError = null;
       this.auxiliaryQueueChain = Promise.resolve();
+      this.preloadedAudio = new Map();
       this.classicPacing = {
         PAUSE_SHORT_MS: 350,
         PAUSE_MEDIUM_MS: 700,
@@ -72,6 +73,20 @@
       this.audioEnabled = true;
       this.emitStatus("idle", "Audio habilitado por interacción de usuario.");
       this.log("INFO", "Audio habilitado por interacción de usuario.");
+    }
+
+    preload(src) {
+      if (!src || this.preloadedAudio.has(src)) return this.preloadedAudio.get(src) || null;
+      const audio = new Audio(src);
+      audio.preload = "auto";
+      audio.load();
+      this.preloadedAudio.set(src, audio);
+      return audio;
+    }
+
+    clearPreloaded(src = null) {
+      if (src) this.preloadedAudio.delete(src);
+      else this.preloadedAudio.clear();
     }
 
     setQueue(queue, context = {}) {
@@ -737,7 +752,9 @@
     
     playItem(item, token) {
       return new Promise((resolve, reject) => {
-        const audio = new Audio(item.src);
+        const audio = this.preloadedAudio.get(item.src) || new Audio(item.src);
+        this.preloadedAudio.delete(item.src);
+        audio.currentTime = 0;
         this.currentAudio = audio;
 
         const cleanup = () => {
