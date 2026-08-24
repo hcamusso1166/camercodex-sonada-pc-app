@@ -899,6 +899,41 @@ const isBookTestImposibleView = isBookTestImposibleLegacyView || isBookTestImpos
 const characteristicDeviceMap = new WeakMap();
 const bookTestConnections = [];
 
+async function getQ5WriteCharacteristic() {
+  const q5Connection = bookTestConnections.find(connection => (
+    connection.device?.name === BLE_DEVICE_NAMES.Q5
+    && connection.server?.connected
+    && connection.service
+  ));
+  const activeQ5Service = q5Connection?.service || (
+    bleServer?.connected && bleServer.device?.name === BLE_DEVICE_NAMES.Q5
+      ? bleServiceFound
+      : null
+  );
+
+  if (!activeQ5Service) {
+    throw new Error("MrCamerDev_Q5 is not connected");
+  }
+
+  return activeQ5Service.getCharacteristic(ledCharacteristic);
+}
+
+if (
+  typeof CamerShowSketchBleTransportV1 !== "undefined"
+  && typeof CamerShowSketchServiceV1 !== "undefined"
+) {
+  const showSketchBleTransport = CamerShowSketchBleTransportV1.createShowSketchBleTransport({
+    getWriteCharacteristic: getQ5WriteCharacteristic,
+  });
+  const showSketchQ5Service = CamerShowSketchServiceV1.createShowSketchService({
+    transport: showSketchBleTransport,
+  });
+
+  window.sendShowSketchToQ5 = function sendShowSketchToQ5(request) {
+    return showSketchQ5Service.sendShowSketch(request);
+  };
+}
+
 function formatBleReference(device) {
   if (!device) return "";
   if (device.id) return `(ref: ${device.id})`;

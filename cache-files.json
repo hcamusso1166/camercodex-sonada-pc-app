@@ -336,5 +336,8 @@
   "/js/rutinas/bookTestImposibleV2TpAdapter.js",
   "/js/rutinas/bookTestImposibleV2Canonical.js",
   "/js/rutinas/bookTestImposibleV2ShowAudio.js",
-  "/rutinas/bookTestImposibleV2.html"
+  "/rutinas/bookTestImposibleV2.html",
+  "/js/showSketchWireV1.js",
+  "/js/showSketchServiceV1.js",
+  "/js/showSketchBleTransportV1.js"
 ]
