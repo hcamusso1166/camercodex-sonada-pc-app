@@ -87,9 +87,6 @@ const ui = {
   resolvedPage: null,
   resolvedLine: null,
   resolvedContextList: null,
-  resolvedPageHash: null,
-  resolvedLineHash: null,
-  resolvedWindowHash: null,
   routineLog: null,
   multiAntennaSimCard: null,
   multiAntennaSlotInputs: [],
@@ -137,9 +134,6 @@ function bindUiElements() {
   ui.resolvedPage = document.getElementById("resolvedPage");
   ui.resolvedLine = document.getElementById("resolvedLine");
   ui.resolvedContextList = document.getElementById("resolvedContextList");
-  ui.resolvedPageHash = document.getElementById("resolvedPageHash");
-  ui.resolvedLineHash = document.getElementById("resolvedLineHash");
-  ui.resolvedWindowHash = document.getElementById("resolvedWindowHash");
 
   ui.routineLog = document.getElementById("routineLog");
   
@@ -727,7 +721,6 @@ function renderImageEncore(result) {
       `Página seleccionada: ${result.sourcePage}`,
       `Página de la imagen: ${result.targetPage}`,
       `Instrucción: ${result.navigationText}`,
-      `Imagen: ${result.description}`,
     ]
     : [
       `Página seleccionada: ${result.sourcePage}`,
@@ -1592,9 +1585,6 @@ function clearSelectionView() {
   ui.resolvedPage.textContent = "—";
   ui.resolvedLine.textContent = "—";
   ui.resolvedContextList.innerHTML = "<li>—</li>";
-  if (ui.resolvedPageHash) ui.resolvedPageHash.textContent = "—";
-  if (ui.resolvedLineHash) ui.resolvedLineHash.textContent = "—";
-  if (ui.resolvedWindowHash) ui.resolvedWindowHash.textContent = "—";
 }
 
 function renderSelection(selection) {
@@ -1602,19 +1592,17 @@ function renderSelection(selection) {
   ui.resolvedLine.textContent = String(selection.lineNumber);
   ui.resolvedContextList.innerHTML = "";
 
-  selection.previewLines.forEach(item => {
+  [
+    { label: "Elegida", lineNumber: selection.lineNumber, selected: true },
+    { label: "Siguiente", lineNumber: selection.lineNumber + 1, selected: false },
+  ].forEach(item => {
     const li = document.createElement("li");
-    const prefix = item.offset === 0 ? "Elegida" : `Siguiente ${item.offset}`;
-    li.textContent = `${prefix} (L${item.lineNumber}): ${item.text}`;
-    if (item.isSelected) {
+    li.textContent = `${item.label} (L${item.lineNumber}): Línea leída`;
+    if (item.selected) {
       li.style.fontWeight = "700";
     }
     ui.resolvedContextList.appendChild(li);
   });
-
-  if (ui.resolvedPageHash) ui.resolvedPageHash.textContent = selection.pageHash || "—";
-  if (ui.resolvedLineHash) ui.resolvedLineHash.textContent = selection.lineHash || "—";
-  if (ui.resolvedWindowHash) ui.resolvedWindowHash.textContent = selection.windowHash || "—";
 }
 
 function updatePayloadStatus(message, isError) {
