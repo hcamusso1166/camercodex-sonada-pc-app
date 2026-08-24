@@ -101,6 +101,7 @@ const ui = {
 
 let showAudio;
 let detectionAudioState = createDetectionAudioState();
+let showSketchSequence = 0;
 
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", initBookTestImposibleV2Routine);
@@ -635,6 +636,7 @@ async function startImageEncore(selection) {
       return;
     }
 
+    void sendImageEncoreShowSketch(result);
     logInfo(`[IMAGE-ENCORE] targetPage=${result.targetPage} imageId=${result.imageId}`, "BTI_V2");
     logInfo(`[IMAGE-ENCORE] pageDistance=${result.numberedPageDistance} turnCount=${result.turnCount} navigation=${result.navigationType}`, "BTI_V2");
     routineState.phase = BTI_V2_PHASES.IMAGE_ENCORE_PLAYING;
@@ -650,6 +652,26 @@ async function startImageEncore(selection) {
     updatePayloadStatus(error.message, true);
     logError(error.message, "BTI_V2");
     renderDeviceStatuses();
+  }
+}
+
+async function sendImageEncoreShowSketch(result) {
+  if (!result?.found) return;
+
+  const request = {
+    sequence: showSketchSequence,
+    book: result.bookId,
+    page: result.targetPage,
+    image: result.imageId,
+  };
+  showSketchSequence = (showSketchSequence + 1) >>> 0;
+
+  try {
+    await window.sendShowSketchToQ5(request);
+    logInfo(`[SHOW_SKETCH] sent sequence=${request.sequence} book=${request.book} page=${request.page} image=${request.image}`, "SHOW_SKETCH");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    logError(`[SHOW_SKETCH] send failed; Image Encore continues without retry: ${message}`, "SHOW_SKETCH");
   }
 }
 
@@ -1661,4 +1683,7 @@ window.bookTestImposibleV2Dev = {
   simulateAntenna8GateFromDev,
   resetBtiV2FlowForNewDetection,
   shouldAcceptAntenna8Gate,
+  startImageEncore,
+  sendImageEncoreShowSketch,
+  getRoutineState: () => routineState,
 };
