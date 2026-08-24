@@ -1592,10 +1592,14 @@ function renderSelection(selection) {
   ui.resolvedLine.textContent = String(selection.lineNumber);
   ui.resolvedContextList.innerHTML = "";
 
-  [
+  const items = [
     { label: "Elegida", lineNumber: selection.lineNumber, selected: true },
-    { label: "Siguiente", lineNumber: selection.lineNumber + 1, selected: false },
-  ].forEach(item => {
+  ];
+  if (selection.lineNumber < selection.sayLines.length) {
+    items.push({ label: "Siguiente", lineNumber: selection.lineNumber + 1, selected: false });
+  }
+
+  items.forEach(item => {
     const li = document.createElement("li");
     li.textContent = `${item.label} (L${item.lineNumber}): Línea leída`;
     if (item.selected) {
