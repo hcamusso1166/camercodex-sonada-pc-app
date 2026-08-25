@@ -19,7 +19,8 @@ function loadRoutine({ sendShowSketchToQ5 } = {}) {
   const window = {
     sendShowSketchToQ5: sendShowSketchToQ5 || (async () => {}),
     BookTestImposibleV2ImageEncore: {
-      resolveIndexedBookImage() { throw new Error('unexpected resolver call'); },
+      resolveManifestBookImage() { throw new Error('unexpected resolver call'); },
+      buildImageAudioPath() { return 'unused.mp3'; },
       buildImageAudioQueue() { return []; },
     },
   };
@@ -46,7 +47,7 @@ function loadRoutine({ sendShowSketchToQ5 } = {}) {
 }
 
 function selection() {
-  return { book: { bookId: 'narnia-el-sobrino-del-mago' }, pageNumber: 11 };
+  return { book: { bookId: 'narnia-el-sobrino-del-mago' }, pageNumber: 11, runtimeManifest: { images: [] } };
 }
 
 function imageResult(overrides = {}) {

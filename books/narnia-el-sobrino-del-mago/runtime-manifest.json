@@ -1,0 +1,975 @@
+{
+  "schemaVersion": 1,
+  "bookId": "narnia-el-sobrino-del-mago",
+  "pages": {
+    "001": {
+      "lineCount": 0
+    },
+    "002": {
+      "lineCount": 0
+    },
+    "003": {
+      "lineCount": 0
+    },
+    "004": {
+      "lineCount": 0
+    },
+    "005": {
+      "lineCount": 0
+    },
+    "006": {
+      "lineCount": 0
+    },
+    "007": {
+      "lineCount": 0
+    },
+    "008": {
+      "lineCount": 0
+    },
+    "009": {
+      "lineCount": 17
+    },
+    "010": {
+      "lineCount": 27
+    },
+    "011": {
+      "lineCount": 8
+    },
+    "012": {
+      "lineCount": 27
+    },
+    "013": {
+      "lineCount": 27
+    },
+    "014": {
+      "lineCount": 27
+    },
+    "015": {
+      "lineCount": 15
+    },
+    "016": {
+      "lineCount": 27
+    },
+    "017": {
+      "lineCount": 27
+    },
+    "018": {
+      "lineCount": 27
+    },
+    "019": {
+      "lineCount": 7
+    },
+    "020": {
+      "lineCount": 27
+    },
+    "021": {
+      "lineCount": 27
+    },
+    "022": {
+      "lineCount": 27
+    },
+    "023": {
+      "lineCount": 27
+    },
+    "024": {
+      "lineCount": 27
+    },
+    "025": {
+      "lineCount": 27
+    },
+    "026": {
+      "lineCount": 7
+    },
+    "027": {
+      "lineCount": 17
+    },
+    "028": {
+      "lineCount": 27
+    },
+    "029": {
+      "lineCount": 27
+    },
+    "030": {
+      "lineCount": 27
+    },
+    "031": {
+      "lineCount": 20
+    },
+    "032": {
+      "lineCount": 27
+    },
+    "033": {
+      "lineCount": 27
+    },
+    "034": {
+      "lineCount": 25
+    },
+    "035": {
+      "lineCount": 27
+    },
+    "036": {
+      "lineCount": 27
+    },
+    "037": {
+      "lineCount": 27
+    },
+    "038": {
+      "lineCount": 27
+    },
+    "039": {
+      "lineCount": 27
+    },
+    "040": {
+      "lineCount": 26
+    },
+    "041": {
+      "lineCount": 17
+    },
+    "042": {
+      "lineCount": 0
+    },
+    "043": {
+      "lineCount": 17
+    },
+    "044": {
+      "lineCount": 27
+    },
+    "045": {
+      "lineCount": 11
+    },
+    "046": {
+      "lineCount": 27
+    },
+    "047": {
+      "lineCount": 27
+    },
+    "048": {
+      "lineCount": 27
+    },
+    "049": {
+      "lineCount": 27
+    },
+    "050": {
+      "lineCount": 27
+    },
+    "051": {
+      "lineCount": 27
+    },
+    "052": {
+      "lineCount": 27
+    },
+    "053": {
+      "lineCount": 27
+    },
+    "054": {
+      "lineCount": 27
+    },
+    "055": {
+      "lineCount": 27
+    },
+    "056": {
+      "lineCount": 27
+    },
+    "057": {
+      "lineCount": 16
+    },
+    "058": {
+      "lineCount": 0
+    },
+    "059": {
+      "lineCount": 17
+    },
+    "060": {
+      "lineCount": 27
+    },
+    "061": {
+      "lineCount": 4
+    },
+    "062": {
+      "lineCount": 27
+    },
+    "063": {
+      "lineCount": 27
+    },
+    "064": {
+      "lineCount": 27
+    },
+    "065": {
+      "lineCount": 27
+    },
+    "066": {
+      "lineCount": 6
+    },
+    "067": {
+      "lineCount": 27
+    },
+    "068": {
+      "lineCount": 18
+    },
+    "069": {
+      "lineCount": 27
+    },
+    "070": {
+      "lineCount": 27
+    },
+    "071": {
+      "lineCount": 25
+    },
+    "072": {
+      "lineCount": 27
+    },
+    "073": {
+      "lineCount": 27
+    },
+    "074": {
+      "lineCount": 27
+    },
+    "075": {
+      "lineCount": 17
+    },
+    "076": {
+      "lineCount": 0
+    },
+    "077": {
+      "lineCount": 17
+    },
+    "078": {
+      "lineCount": 13
+    },
+    "079": {
+      "lineCount": 27
+    },
+    "080": {
+      "lineCount": 27
+    },
+    "081": {
+      "lineCount": 0
+    },
+    "082": {
+      "lineCount": 27
+    },
+    "083": {
+      "lineCount": 9
+    },
+    "084": {
+      "lineCount": 27
+    },
+    "085": {
+      "lineCount": 27
+    },
+    "086": {
+      "lineCount": 27
+    },
+    "087": {
+      "lineCount": 27
+    },
+    "088": {
+      "lineCount": 27
+    },
+    "089": {
+      "lineCount": 27
+    },
+    "090": {
+      "lineCount": 27
+    },
+    "091": {
+      "lineCount": 27
+    },
+    "092": {
+      "lineCount": 27
+    },
+    "093": {
+      "lineCount": 6
+    },
+    "094": {
+      "lineCount": 0
+    },
+    "095": {
+      "lineCount": 16
+    },
+    "096": {
+      "lineCount": 27
+    },
+    "097": {
+      "lineCount": 27
+    },
+    "098": {
+      "lineCount": 27
+    },
+    "099": {
+      "lineCount": 11
+    },
+    "100": {
+      "lineCount": 27
+    },
+    "101": {
+      "lineCount": 14
+    },
+    "102": {
+      "lineCount": 27
+    },
+    "103": {
+      "lineCount": 27
+    },
+    "104": {
+      "lineCount": 27
+    },
+    "105": {
+      "lineCount": 27
+    },
+    "106": {
+      "lineCount": 27
+    },
+    "107": {
+      "lineCount": 27
+    },
+    "108": {
+      "lineCount": 27
+    },
+    "109": {
+      "lineCount": 9
+    },
+    "110": {
+      "lineCount": 27
+    },
+    "111": {
+      "lineCount": 16
+    },
+    "112": {
+      "lineCount": 26
+    },
+    "113": {
+      "lineCount": 27
+    },
+    "114": {
+      "lineCount": 27
+    },
+    "115": {
+      "lineCount": 27
+    },
+    "116": {
+      "lineCount": 27
+    },
+    "117": {
+      "lineCount": 27
+    },
+    "118": {
+      "lineCount": 27
+    },
+    "119": {
+      "lineCount": 27
+    },
+    "120": {
+      "lineCount": 27
+    },
+    "121": {
+      "lineCount": 0
+    },
+    "122": {
+      "lineCount": 27
+    },
+    "123": {
+      "lineCount": 18
+    },
+    "124": {
+      "lineCount": 19
+    },
+    "125": {
+      "lineCount": 27
+    },
+    "126": {
+      "lineCount": 27
+    },
+    "127": {
+      "lineCount": 13
+    },
+    "128": {
+      "lineCount": 0
+    },
+    "129": {
+      "lineCount": 17
+    },
+    "130": {
+      "lineCount": 27
+    },
+    "131": {
+      "lineCount": 27
+    },
+    "132": {
+      "lineCount": 27
+    },
+    "133": {
+      "lineCount": 26
+    },
+    "134": {
+      "lineCount": 27
+    },
+    "135": {
+      "lineCount": 27
+    },
+    "136": {
+      "lineCount": 27
+    },
+    "137": {
+      "lineCount": 27
+    },
+    "138": {
+      "lineCount": 27
+    },
+    "139": {
+      "lineCount": 15
+    },
+    "140": {
+      "lineCount": 27
+    },
+    "141": {
+      "lineCount": 27
+    },
+    "142": {
+      "lineCount": 11
+    },
+    "143": {
+      "lineCount": 17
+    },
+    "144": {
+      "lineCount": 27
+    },
+    "145": {
+      "lineCount": 27
+    },
+    "146": {
+      "lineCount": 27
+    },
+    "147": {
+      "lineCount": 14
+    },
+    "148": {
+      "lineCount": 27
+    },
+    "149": {
+      "lineCount": 27
+    },
+    "150": {
+      "lineCount": 27
+    },
+    "151": {
+      "lineCount": 27
+    },
+    "152": {
+      "lineCount": 27
+    },
+    "153": {
+      "lineCount": 27
+    },
+    "154": {
+      "lineCount": 27
+    },
+    "155": {
+      "lineCount": 18
+    },
+    "156": {
+      "lineCount": 27
+    },
+    "157": {
+      "lineCount": 17
+    },
+    "158": {
+      "lineCount": 17
+    },
+    "159": {
+      "lineCount": 21
+    },
+    "160": {
+      "lineCount": 0
+    },
+    "161": {
+      "lineCount": 17
+    },
+    "162": {
+      "lineCount": 27
+    },
+    "163": {
+      "lineCount": 11
+    },
+    "164": {
+      "lineCount": 10
+    },
+    "165": {
+      "lineCount": 27
+    },
+    "166": {
+      "lineCount": 27
+    },
+    "167": {
+      "lineCount": 27
+    },
+    "168": {
+      "lineCount": 27
+    },
+    "169": {
+      "lineCount": 27
+    },
+    "170": {
+      "lineCount": 27
+    },
+    "171": {
+      "lineCount": 27
+    },
+    "172": {
+      "lineCount": 27
+    },
+    "173": {
+      "lineCount": 27
+    },
+    "174": {
+      "lineCount": 19
+    },
+    "175": {
+      "lineCount": 18
+    },
+    "176": {
+      "lineCount": 0
+    },
+    "177": {
+      "lineCount": 17
+    },
+    "178": {
+      "lineCount": 14
+    },
+    "179": {
+      "lineCount": 27
+    },
+    "180": {
+      "lineCount": 27
+    },
+    "181": {
+      "lineCount": 27
+    },
+    "182": {
+      "lineCount": 27
+    },
+    "183": {
+      "lineCount": 13
+    },
+    "184": {
+      "lineCount": 27
+    },
+    "185": {
+      "lineCount": 27
+    },
+    "186": {
+      "lineCount": 27
+    },
+    "187": {
+      "lineCount": 27
+    },
+    "188": {
+      "lineCount": 27
+    },
+    "189": {
+      "lineCount": 12
+    },
+    "190": {
+      "lineCount": 27
+    },
+    "191": {
+      "lineCount": 27
+    },
+    "192": {
+      "lineCount": 7
+    },
+    "193": {
+      "lineCount": 17
+    },
+    "194": {
+      "lineCount": 27
+    },
+    "195": {
+      "lineCount": 27
+    },
+    "196": {
+      "lineCount": 27
+    },
+    "197": {
+      "lineCount": 27
+    },
+    "198": {
+      "lineCount": 19
+    },
+    "199": {
+      "lineCount": 27
+    },
+    "200": {
+      "lineCount": 27
+    },
+    "201": {
+      "lineCount": 27
+    },
+    "202": {
+      "lineCount": 0
+    },
+    "203": {
+      "lineCount": 27
+    },
+    "204": {
+      "lineCount": 27
+    },
+    "205": {
+      "lineCount": 27
+    },
+    "206": {
+      "lineCount": 27
+    },
+    "207": {
+      "lineCount": 17
+    },
+    "208": {
+      "lineCount": 27
+    },
+    "209": {
+      "lineCount": 16
+    },
+    "210": {
+      "lineCount": 0
+    },
+    "211": {
+      "lineCount": 17
+    },
+    "212": {
+      "lineCount": 27
+    },
+    "213": {
+      "lineCount": 12
+    },
+    "214": {
+      "lineCount": 27
+    },
+    "215": {
+      "lineCount": 27
+    },
+    "216": {
+      "lineCount": 26
+    },
+    "217": {
+      "lineCount": 0
+    },
+    "218": {
+      "lineCount": 27
+    },
+    "219": {
+      "lineCount": 27
+    },
+    "220": {
+      "lineCount": 27
+    },
+    "221": {
+      "lineCount": 27
+    },
+    "222": {
+      "lineCount": 27
+    },
+    "223": {
+      "lineCount": 27
+    },
+    "224": {
+      "lineCount": 27
+    },
+    "225": {
+      "lineCount": 19
+    },
+    "226": {
+      "lineCount": 0
+    },
+    "227": {
+      "lineCount": 17
+    },
+    "228": {
+      "lineCount": 27
+    },
+    "229": {
+      "lineCount": 27
+    },
+    "230": {
+      "lineCount": 12
+    },
+    "231": {
+      "lineCount": 27
+    },
+    "232": {
+      "lineCount": 27
+    },
+    "233": {
+      "lineCount": 27
+    },
+    "234": {
+      "lineCount": 27
+    },
+    "235": {
+      "lineCount": 18
+    },
+    "236": {
+      "lineCount": 27
+    },
+    "237": {
+      "lineCount": 0
+    },
+    "238": {
+      "lineCount": 27
+    },
+    "239": {
+      "lineCount": 27
+    },
+    "240": {
+      "lineCount": 27
+    },
+    "241": {
+      "lineCount": 16
+    },
+    "242": {
+      "lineCount": 27
+    },
+    "243": {
+      "lineCount": 27
+    },
+    "244": {
+      "lineCount": 27
+    },
+    "245": {
+      "lineCount": 27
+    },
+    "246": {
+      "lineCount": 13
+    },
+    "247": {
+      "lineCount": 27
+    },
+    "248": {
+      "lineCount": 27
+    },
+    "249": {
+      "lineCount": 27
+    },
+    "250": {
+      "lineCount": 27
+    },
+    "251": {
+      "lineCount": 27
+    },
+    "252": {
+      "lineCount": 17
+    }
+  },
+  "audio": {
+    "profile": "bti-audio-v1",
+    "meta": {
+      "title": "audios/_meta/title.mp3",
+      "author": "audios/_meta/author.mp3"
+    },
+    "reading": {
+      "takes": [
+        "p1",
+        "p2",
+        "p3"
+      ],
+      "pathPattern": "audios/page-{page3}/line-{line3}_{take}.mp3"
+    },
+    "images": {
+      "takes": [
+        "p1",
+        "p2",
+        "p3"
+      ],
+      "pathPattern": "audios/page-{page3}/images/{imageId}_{take}.mp3"
+    }
+  },
+  "images": [
+    {
+      "page": 11,
+      "imageId": "image-001"
+    },
+    {
+      "page": 15,
+      "imageId": "image-001"
+    },
+    {
+      "page": 19,
+      "imageId": "image-001"
+    },
+    {
+      "page": 31,
+      "imageId": "image-001"
+    },
+    {
+      "page": 34,
+      "imageId": "image-001"
+    },
+    {
+      "page": 45,
+      "imageId": "image-001"
+    },
+    {
+      "page": 47,
+      "imageId": "image-001"
+    },
+    {
+      "page": 61,
+      "imageId": "image-001"
+    },
+    {
+      "page": 66,
+      "imageId": "image-001"
+    },
+    {
+      "page": 68,
+      "imageId": "image-001"
+    },
+    {
+      "page": 78,
+      "imageId": "image-001"
+    },
+    {
+      "page": 81,
+      "imageId": "image-001"
+    },
+    {
+      "page": 83,
+      "imageId": "image-001"
+    },
+    {
+      "page": 99,
+      "imageId": "image-001"
+    },
+    {
+      "page": 101,
+      "imageId": "image-001"
+    },
+    {
+      "page": 103,
+      "imageId": "image-001"
+    },
+    {
+      "page": 109,
+      "imageId": "image-001"
+    },
+    {
+      "page": 121,
+      "imageId": "image-001"
+    },
+    {
+      "page": 123,
+      "imageId": "image-001"
+    },
+    {
+      "page": 124,
+      "imageId": "image-001"
+    },
+    {
+      "page": 139,
+      "imageId": "image-001"
+    },
+    {
+      "page": 147,
+      "imageId": "image-001"
+    },
+    {
+      "page": 154,
+      "imageId": "image-001"
+    },
+    {
+      "page": 155,
+      "imageId": "image-001"
+    },
+    {
+      "page": 155,
+      "imageId": "image-002"
+    },
+    {
+      "page": 157,
+      "imageId": "image-001"
+    },
+    {
+      "page": 158,
+      "imageId": "image-001"
+    },
+    {
+      "page": 163,
+      "imageId": "image-001"
+    },
+    {
+      "page": 164,
+      "imageId": "image-001"
+    },
+    {
+      "page": 174,
+      "imageId": "image-001"
+    },
+    {
+      "page": 175,
+      "imageId": "image-001"
+    },
+    {
+      "page": 178,
+      "imageId": "image-001"
+    },
+    {
+      "page": 183,
+      "imageId": "image-001"
+    },
+    {
+      "page": 189,
+      "imageId": "image-001"
+    },
+    {
+      "page": 198,
+      "imageId": "image-001"
+    },
+    {
+      "page": 202,
+      "imageId": "image-001"
+    },
+    {
+      "page": 207,
+      "imageId": "image-001"
+    },
+    {
+      "page": 213,
+      "imageId": "image-001"
+    },
+    {
+      "page": 217,
+      "imageId": "image-001"
+    },
+    {
+      "page": 230,
+      "imageId": "image-001"
+    },
+    {
+      "page": 235,
+      "imageId": "image-001"
+    },
+    {
+      "page": 237,
+      "imageId": "image-001"
+    },
+    {
+      "page": 246,
+      "imageId": "image-001"
+    }
+  ],
+  "readingRules": {
+    "009": {
+      "16": {
+        "playLine": 16,
+        "extendWithNextLine": true
+      },
+      "17": {
+        "playLine": 16,
+        "extendWithNextLine": true,
+        "announceLines": [
+          17,
+          16
+        ]
+      }
+    }
+  }
+}

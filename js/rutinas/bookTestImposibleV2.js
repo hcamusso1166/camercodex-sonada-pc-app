@@ -33,19 +33,6 @@ const BTI_V2_PHASES = Object.freeze({
   ERROR: "ERROR",
 });
 
-/**
- * @typedef {Object} PageImage
- * @property {string} imageId
- * @property {string} description
- *
- * @typedef {Object} PageData
- * @property {number} page
- * @property {string} bookId
- * @property {number} lineCount
- * @property {string[]} sayLines
- * @property {PageImage[]} images
- */
-
 const routineState = {
   books: [],
   currentBook: null,
@@ -681,13 +668,22 @@ function clearPreparedImageEncore() {
   const sourcePage = Number(selection?.pageNumber);
   const startedAt = performance.now();
   logInfo(`[IMAGE-ENCORE] preparing book=${bookId} sourcePage=${sourcePage}`, "BTI_V2");
-  const result = window.BookTestImposibleV2ImageEncore.resolveIndexedBookImage({ bookId, sourcePage });
+  const result = window.BookTestImposibleV2ImageEncore.resolveManifestBookImage({
+    bookId,
+    sourcePage,
+    images: selection.runtimeManifest.images,
+  });
   routineState.preparedImageEncore = result;
   if (!result.found) {
     logInfo(`[IMAGE-ENCORE] no image found book=${bookId} sourcePage=${sourcePage}`, "BTI_V2");
     return result;
   }
-  const audioPath = `../books/${result.audio}`;
+  const audioPath = `../books/${window.BookTestImposibleV2ImageEncore.buildImageAudioPath({
+    bookId,
+    page: result.targetPage,
+    imageId: result.imageId,
+    take: "p1",
+  })}`;
   routineState.preparedImageAudioPath = audioPath;
   showAudio?.preload(audioPath);
   logInfo(`[IMAGE-ENCORE] prepared targetPage=${result.targetPage} imageId=${result.imageId} resolveMs=${(performance.now() - startedAt).toFixed(2)}`, "BTI_V2");
@@ -736,17 +732,18 @@ function renderImageEncore(result) {
 
 function buildLineQueue(selection, offset = 0) {
   const line = selection.lineNumber + offset;
-  if (line > selection.sayLines.length) {
+  if (line > selection.lineCount) {
     logInfo(`[BTI_V2] Skipping line +${offset} because it does not exist`, "AUDIO");
     return [];
   }
-  const context = showAudio.resolveReadingContext(selection.book.bookId, selection.pageNumber, line);
+  const rule = selection.runtimeManifest.readingRules[String(selection.pageNumber).padStart(3, "0")]?.[String(line)] || null;
+  const context = showAudio.resolveReadingContext(selection.book.bookId, selection.pageNumber, line, rule);
   const takes = showAudio.getClassicTakeUrls(context);
   return showAudio.playClassicReadingTwoTakes(context, takes);
 }
 
 function buildResolutionQueue(selection) {
-  const context = showAudio.resolveReadingContext(selection.book.bookId, selection.pageNumber, selection.lineNumber);
+  const context = showAudio.resolveReadingContext(selection.book.bookId, selection.pageNumber, selection.lineNumber, selection.readingRule);
   return showAudio.buildResolutionBookPageLineOnceQueue(context);
 }
 
@@ -838,15 +835,16 @@ async function handleDeviceSelectionEvent(selectionPayload) {
     logInfo(`Selección resuelta para ${selection.book.bookId}.`, "DATA");
 
     const requestedLine = Number(selectionPayload.line ?? selection.lineNumber ?? 0);
-    if (!Number.isInteger(requestedLine) || requestedLine <= 0 || requestedLine > MAX_LINE_NUMBER) {
-      logError(`[AUDIO] Línea inválida para show-time: ${requestedLine}. Rango permitido 1..${MAX_LINE_NUMBER}.`, "AUDIO");
+    if (!Number.isInteger(requestedLine) || requestedLine <= 0 || requestedLine > selection.lineCount) {
+      logError(`[AUDIO] Línea inválida para show-time: ${requestedLine}. La página admite 1..${selection.lineCount}.`, "AUDIO");
       return;
     }
     await showAudio.playShowDevSequence({
       bookId: selection.book.bookId,
       page: selection.pageNumber,
       line: requestedLine,
-      pageLineCount: selection.sayLines.length,
+      pageLineCount: selection.lineCount,
+      readingRules: selection.runtimeManifest.readingRules[String(selection.pageNumber).padStart(3, "0")] || {},
     });
   } catch (error) {
     updatePayloadStatus(error.message, true);
@@ -947,62 +945,19 @@ async function resolveSelection(book, page, line) {
   if (!Number.isInteger(line) || line <= 0) {
     throw new Error(`Renglón inválido recibido: ${line}.`);
   }
-if (line > MAX_LINE_NUMBER) {
-    throw new Error(`Renglón inválido recibido: ${line}. Máximo soportado ${MAX_LINE_NUMBER}.`);
-  }
   if (line > MAX_LINE_CARD_SUM) {
     logInfo(
-      `Renglón ${line} por encima de suma de cartas (${MAX_LINE_CARD_SUM}); permitido por capacidad extendida hasta ${MAX_LINE_NUMBER}.`,
+      `Renglón ${line} por encima de suma de cartas (${MAX_LINE_CARD_SUM}); se validará contra lineCount.`,
       "DATA"
     );
   }
 
-  const pagePath = buildPagePath(book, page);
-  logInfo(`Resolviendo página desde: ${pagePath}`, "DATA");
-  const pageData = await loadJson(pagePath, `No se pudo cargar la página ${page}`);
-
-  const sayLines = extractSayLines(pageData);
-  const images = extractPageImages(pageData);
-  if (!sayLines.length) {
-    throw new Error(`La página ${page} no contiene líneas SAY utilizables.`);
-  }
-
   const normalizedLine = normalizeShowSelectionLine(page, line);
-  const lineIndex = normalizedLine - 1;
-  if (lineIndex < 0 || lineIndex >= sayLines.length) {
-    throw new Error(`Renglón fuera de rango. La página ${page} tiene ${sayLines.length} líneas reales.`);
-  }
-
-  if (page === 9) {
-    logInfo("Página 009 cargada", "DATA");
-  }
-  logInfo(`SAY lines: ${sayLines.length}`, "DATA");
-
-  const windowLines = resolveSayWindow(sayLines, normalizedLine);
-  const pageHash = buildPageHash(sayLines);
-  const lineHash = buildLineHash(sayLines[lineIndex]);
-  const windowHash = buildWindowHash(windowLines);
-
-  logInfo(`pageHash=${pageHash}`, "HASH");
-  logInfo(`lineHash=${lineHash}`, "HASH");
-  logInfo(`windowHash=${windowHash}`, "HASH");
-  logInfo(`Ventana resuelta con ${windowLines.length} línea(s)`, "VIEW");
-
-  logTpCanonicalAlignment(page, normalizedLine, windowLines, pageHash, windowHash);
-
-  return {
+  const manifest = await window.BookTestImposibleV2RuntimeManifest.loadRuntimeManifest(
     book,
-    pageNumber: page,
-    lineNumber: normalizedLine,
-    selectedLine: sayLines[lineIndex],
-    sayLines,
-    images,
-    windowLines,
-    pageHash,
-    lineHash,
-    windowHash,
-    previewLines: buildPreviewLines(sayLines, lineIndex),
-  };
+    path => loadJson(path, `No se pudo cargar runtime manifest de ${book.bookId}`)
+  );
+  return window.BookTestImposibleV2RuntimeManifest.resolveSelection(manifest, book, page, normalizedLine);
 }
 
 function normalizeShowSelectionLine(page, line) {
@@ -1010,60 +965,6 @@ function normalizeShowSelectionLine(page, line) {
   return line;
 }
 
-function resolveSayWindow(sayLines, selectedLine) {
-  return window.BookTestImposibleV2Canonical?.resolveSayWindow(sayLines, selectedLine)
-    || buildPreviewLines(sayLines, Math.max(0, selectedLine - 1)).map(item => item.text);
-}
-
-function buildPageHash(sayLines) {
-  return window.BookTestImposibleV2Canonical?.buildPageHash(sayLines) || "00000000";
-}
-
-function buildWindowHash(windowLines) {
-  return window.BookTestImposibleV2Canonical?.buildWindowHash(windowLines) || "00000000";
-}
-
-function buildLineHash(line) {
-  return window.BookTestImposibleV2Canonical?.buildLineHash(line) || "00000000";
-}
-
-function logTpCanonicalAlignment(page, selectedLine, appWindowLines, appPageHash, appWindowHash) {
-  if (page !== 9 || selectedLine <= 0) {
-    return;
-  }
-
-  const tpSayLines = window.BookTestImposibleV2Canonical?.getTpCanonicalPage009SayLines?.() || [];
-  const tpWindowLines = resolveSayWindow(tpSayLines, selectedLine);
-  const tpPageHash = buildPageHash(tpSayLines);
-  const tpWindowHash = buildWindowHash(tpWindowLines);
-
-  logInfo("Page 009 canonical SAY loaded", "TP");
-  logInfo(`pageHash=${tpPageHash}`, "TP");
-  logInfo(`windowHash=${tpWindowHash}`, "TP");
-  logInfo(`selectedLine=${selectedLine}`, "TP");
-  logInfo(`windowLines=${tpWindowLines.length}`, "TP");
-
-  if (tpPageHash !== appPageHash || tpWindowHash !== appWindowHash || tpWindowLines.join("\n") !== appWindowLines.join("\n")) {
-    logError("Desalineación detectada entre app y resolución local TP canónica.", "TP");
-  }
-}
-
-function buildPreviewLines(lines, selectedIndex) {
-  const preview = [];
-  for (let offset = 0; offset < 4; offset += 1) {
-    const idx = selectedIndex + offset;
-    if (idx >= lines.length) {
-      break;
-    }
-    preview.push({
-      lineNumber: idx + 1,
-      text: lines[idx],
-      isSelected: offset === 0,
-      offset,
-    });
-  }
-  return preview;
-}
 async function resolveLocalLineTakes(bookId, page, line, assetExistsChecker) {
   const parts = ["p1", "p2", "p3"];
   const resolved = [];
@@ -1307,76 +1208,6 @@ function getBookId(rawBook) {
   return rawBook?.bookId || rawBook?.id || rawBook?.slug || "";
 }
 
-function normalizeRootPath(rootPath) {
-  if (!rootPath || typeof rootPath !== "string") {
-    return "";
-  }
-
-  if (rootPath.startsWith("../") || rootPath.startsWith("./")) {
-    return rootPath;
-  }
-
-  if (rootPath.startsWith("books/")) {
-    return `../${rootPath}`;
-  }
-
-  return `${BOOK_DATA.basePath}/${rootPath.replace(/^\/+/, "")}`;
-}
-
-function buildPagePath(book, page) {
-  const pageSlug = String(page).padStart(3, "0");
-  return `${normalizeRootPath(book.root)}/pages/page-${pageSlug}.json`;
-}
-
-function extractSayLines(pageData) {
-  const candidates = [
-    pageData?.sayLines,
-    pageData?.lines,
-    pageData?.lineas,
-    pageData?.content?.lines,
-    pageData?.data?.lines,
-  ].filter(Boolean);
-
-  const list = candidates.find(Array.isArray);
-  if (!list) {
-    return [];
-  }
-
-  return list
-    .map(item => {
-      if (typeof item === "string") {
-        return item.trim();
-      }
-      if (item && typeof item === "object") {
-        return (item.text || item.content || item.line || "").trim();
-      }
-      return "";
-    })
-    .filter(Boolean);
-}
-
-function extractPageImages(pageData) {
-  if (!Array.isArray(pageData?.images)) {
-    return [];
-  }
-
-  return pageData.images
-    .map(item => {
-      if (!item || typeof item !== "object") {
-        return null;
-      }
-
-      const imageId = typeof item.imageId === "string" ? item.imageId.trim() : "";
-      const description = typeof item.description === "string" ? item.description.trim() : "";
-
-      if (!imageId || !description) {
-        return null;
-      }
-
-      return { imageId, description };
-    })
-    .filter(Boolean);
-}
 
 function resetRoutineState() {
   resetDetectionAudioState();
@@ -1595,7 +1426,7 @@ function renderSelection(selection) {
   const items = [
     { label: "Elegida", lineNumber: selection.lineNumber, selected: true },
   ];
-  if (selection.lineNumber < selection.sayLines.length) {
+  if (selection.lineNumber < selection.lineCount) {
     items.push({ label: "Siguiente", lineNumber: selection.lineNumber + 1, selected: false });
   }
 
@@ -1651,17 +1482,9 @@ window.resetBtiV2FlowForNewDetection = resetBtiV2FlowForNewDetection;
 window.setBookTestImposibleV2DeviceState = setBookTestImposibleV2DeviceState;
 
 window.bookTestImposibleV2Dev = {
-  buildPagePath,
-  buildPreviewLines,
   resolveBookByDeviceCode,
   parseSelectionPayload,
-  resolveSayWindow,
-  buildPageHash,
-  buildWindowHash,
-  buildLineHash,
-  extractPageImages,
   buildImageTakePath,
-  resolveNextBookImage: (...args) => window.BookTestImposibleV2ImageEncore.resolveNextBookImage(...args),
   resolveImageNavigation: (...args) => window.BookTestImposibleV2ImageEncore.resolveImageNavigation(...args),
   buildImageAudioPath: (...args) => window.BookTestImposibleV2ImageEncore.buildImageAudioPath(...args),
   prepareImageEncore,

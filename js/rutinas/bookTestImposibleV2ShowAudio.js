@@ -3,8 +3,6 @@
   const BTI_V2_T2_BETWEEN_FOLLOWUP_LINES_MS = 5000;
   const SHOW_DEV_FOLLOWUP_COUNT = 3;
 
-    /*TODO(audio-canonical): los futuros takes (title/author/line-XXX_p1..p3) deben generarse
-      desde el SAY canónico de página y validarse por lineHash para alinear texto + audio.*/
   class BookTestImposibleV2ShowAudio {
     constructor(options = {}) {
       this.onLog = options.onLog || (() => {});
@@ -31,7 +29,7 @@
       };
     }
 
-    resolveReadingContext(bookId, pageNumber, selectedLineNumber) {
+    resolveReadingContext(bookId, pageNumber, selectedLineNumber, readingRule = null) {
       const ctx = {
         bookId,
         pageNumber,
@@ -43,27 +41,15 @@
         lineAnnouncementNumbers: [selectedLineNumber],
       };
 
-      const isSpecialBook = bookId === "narnia-el-sobrino-del-mago";
-      const isSpecialPage9 = isSpecialBook && pageNumber === 9;
-
-      if (isSpecialPage9 && selectedLineNumber === 16) {
-        this.log("INFO", "[AUDIO] Caso especial contenido: Page 009 line 016 extendida con continuidad en 017.");
-        ctx.playbackLineNumber = 16;
-        ctx.tpStartLineNumber = 16;
-        ctx.classicMode = "extend-next-line";
-        ctx.lineAnnouncementMode = "single";
-        ctx.lineAnnouncementNumbers = [16];
-        return ctx;
+      if (readingRule) {
+        ctx.playbackLineNumber = readingRule.playLine ?? selectedLineNumber;
+        ctx.tpStartLineNumber = ctx.playbackLineNumber;
+        ctx.lineAnnouncementNumbers = readingRule.announceLines || [selectedLineNumber];
+        ctx.lineAnnouncementMode = ctx.lineAnnouncementNumbers.length > 1 ? "pair" : "single";
       }
-
-      if (isSpecialPage9 && selectedLineNumber === 17) {
-        this.log("INFO", "[AUDIO] Caso especial contenido: Page 009 line 017 remapeada a bloque 016+continuidad.");
-        ctx.playbackLineNumber = 16;
-        ctx.tpStartLineNumber = 16;
+      if (readingRule?.extendWithNextLine) {
         ctx.classicMode = "extend-next-line";
-        ctx.lineAnnouncementMode = "pair";
-        ctx.lineAnnouncementNumbers = [17, 16];
-        return ctx;
+        this.log("INFO", `[AUDIO] Regla runtime extendida selected=${selectedLineNumber} playback=${ctx.playbackLineNumber}.`);
       }
 
       return ctx;
@@ -253,12 +239,13 @@
       const base = `../books/${context.bookId}/audios/page-${pageSlug}`;
 
       if (context.classicMode === "extend-next-line") {
-        this.log("INFO", "[AUDIO] Page 009 line 016 -> clásico extendido (p1+p2+p3+p4)");
+        const nextLineSlug = this.pad3(context.playbackLineNumber + 1);
+        this.log("INFO", `[AUDIO] Regla runtime línea ${lineSlug} -> clásico extendido (p1+p2+p3+p4)`);
         return {
-          p1: `${base}/line-016_p1.mp3`,
-          p2: `${base}/line-016_p2.mp3`,
-          p3: `${base}/line-016_p3.mp3`,
-          p4: `${base}/line-017_p1.mp3`,
+          p1: `${base}/line-${lineSlug}_p1.mp3`,
+          p2: `${base}/line-${lineSlug}_p2.mp3`,
+          p3: `${base}/line-${lineSlug}_p3.mp3`,
+          p4: `${base}/line-${nextLineSlug}_p1.mp3`,
         };
       }
 
@@ -323,7 +310,7 @@
       this.log("INFO", "[AUDIO] Iniciando flujo show DEV encadenado");
       this.log("INFO", `[AUDIO] Línea base -> page=${this.pad3(page)} line=${this.pad3(line)}`);
 
-      const initialContext = this.resolveReadingContext(bookId, page, line);
+      const initialContext = this.resolveReadingContext(bookId, page, line, params.readingRules?.[String(line)] || null);
       const queue = [
         ...this.buildInitialShowQueue(initialContext),
       ];
@@ -336,6 +323,7 @@
           baseLine: line,
           offset,
           pageLineCount,
+          readingRules: params.readingRules,
         });
 
         if (!followUpQueue) {
@@ -373,7 +361,7 @@
       ];
     }
 
-    buildFollowUpClassicQueue({ bookId, page, baseLine, offset, pageLineCount }) {
+    buildFollowUpClassicQueue({ bookId, page, baseLine, offset, pageLineCount, readingRules = {} }) {
       const targetLine = Number(baseLine) + Number(offset);
       if (!Number.isInteger(targetLine) || !Number.isInteger(pageLineCount) || targetLine > pageLineCount) {
         this.log("INFO", `[AUDIO] Follow-up +${offset} omitido por fuera de rango`);
@@ -382,7 +370,7 @@
       }
 
       this.log("INFO", `[AUDIO] Follow-up +${offset} -> line=${this.pad3(targetLine)}`);
-      const context = this.resolveReadingContext(bookId, page, targetLine);
+      const context = this.resolveReadingContext(bookId, page, targetLine, readingRules[String(targetLine)] || null);
       const takes = this.getClassicTakeUrls(context);
       return this.playClassicReadingThreeTakes(context, takes);
     }
