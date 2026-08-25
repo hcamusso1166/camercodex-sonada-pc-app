@@ -20,6 +20,32 @@ test('validator admite lineCount cero y rechaza manifest inválido', () => {
   assert.throws(() => runtime.validateRuntimeManifest(invalid, manifest.bookId), /lineCount inválido/);
 });
 
+test('validator congela exactamente el contrato de audio V1', () => {
+  const mutations = [
+    ['profile', draft => { draft.audio.profile = 'bti-audio-v2'; }],
+    ['meta.title', draft => { draft.audio.meta.title = 'audios/_meta/otro.mp3'; }],
+    ['meta.author', draft => { draft.audio.meta.author = 'audios/_meta/otro.mp3'; }],
+    ['reading.takes incompletos', draft => { draft.audio.reading.takes = ['p1', 'p2']; }],
+    ['reading.takes adicionales', draft => { draft.audio.reading.takes = ['p1', 'p2', 'p3', 'p4']; }],
+    ['reading.takes desordenados', draft => { draft.audio.reading.takes = ['p2', 'p1', 'p3']; }],
+    ['reading.pathPattern', draft => { draft.audio.reading.pathPattern = 'audios/{take}.mp3'; }],
+    ['images.takes', draft => { draft.audio.images.takes = ['p1', 'p2']; }],
+    ['images.takes desordenados', draft => { draft.audio.images.takes = ['p2', 'p1', 'p3']; }],
+    ['images.pathPattern', draft => { draft.audio.images.pathPattern = 'images/{take}.mp3'; }],
+  ];
+
+  assert.equal(runtime.validateRuntimeManifest(manifest, manifest.bookId), manifest);
+  for (const [label, mutate] of mutations) {
+    const invalid = structuredClone(manifest);
+    mutate(invalid);
+    assert.throws(
+      () => runtime.validateRuntimeManifest(invalid, manifest.bookId),
+      /inválido para bti-audio-v1/,
+      label
+    );
+  }
+});
+
 test('page 107 resuelve lineCount 27, siguiente y último renglón', () => {
   const normal = runtime.resolveSelection(manifest, book, 107, 3);
   assert.equal(normal.lineCount, 27);

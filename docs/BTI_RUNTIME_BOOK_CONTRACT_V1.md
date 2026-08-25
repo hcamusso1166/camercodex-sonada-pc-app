@@ -8,7 +8,14 @@ Book Test Imposible V2 resuelve cada libro mediante `books/<bookId>/runtime-mani
 
 - `pages` declara cada página por clave de tres dígitos y su `lineCount`.
 - `lineCount >= 0`. Un valor `0` significa que la página existe pero no posee renglones seleccionables; puede igualmente contener imágenes operacionales.
-- `audio` define el perfil, los takes y las convenciones determinísticas para audios meta, de lectura y de imágenes.
+- En `schemaVersion: 1`, las convenciones de `audio` son fijas, no configurables libremente:
+  - `profile`: `"bti-audio-v1"`
+  - `meta.title`: `"audios/_meta/title.mp3"`
+  - `meta.author`: `"audios/_meta/author.mp3"`
+  - `reading.takes`: `["p1", "p2", "p3"]`
+  - `reading.pathPattern`: `"audios/page-{page3}/line-{line3}_{take}.mp3"`
+  - `images.takes`: `["p1", "p2", "p3"]`
+  - `images.pathPattern`: `"audios/page-{page3}/images/{imageId}_{take}.mp3"`
 - `images` contiene exclusivamente `page` e `imageId`, incluso para páginas con `lineCount: 0`.
 - `readingRules` expresa excepciones operacionales mediante `playLine`, `extendWithNextLine` y `announceLines`.
 
