@@ -48,21 +48,44 @@ test('validator congela exactamente el contrato de audio V1', () => {
 
 test('page 107 resuelve lineCount 27, siguiente y último renglón', () => {
   const normal = runtime.resolveSelection(manifest, book, 107, 3);
-  assert.equal(normal.lineCount, 27);
-  assert.equal(normal.lineNumber < normal.lineCount, true);
+  assert.equal(manifest.pages['107'].lineCount, 27);
+  assert.deepEqual(normal.readingPlan.targets, [{ pageNumber: 107, lineNumber: 3 }, { pageNumber: 107, lineNumber: 4 }]);
   const last = runtime.resolveSelection(manifest, book, 107, 27);
-  assert.equal(last.lineNumber < last.lineCount, false);
+  assert.deepEqual(last.readingPlan.targets[0], { pageNumber: 107, lineNumber: 27 });
 });
 
-test('página sin líneas rechaza selecciones', () => {
-  assert.throws(() => runtime.resolveSelection(manifest, book, 237, 1), /no posee renglones seleccionables/);
+test('resolveCyclicReadingPlan cubre normal, páginas vacías, bordes y wrap', () => {
+  const cases = [
+    [107, 3, [[107, 3], [107, 4]], false, false, false],
+    [41, 17, [[41, 17], [43, 1]], false, true, false],
+    [9, 16, [[9, 16], [9, 17]], false, false, false],
+    [9, 17, [[9, 17], [10, 1]], false, true, false],
+    [42, 1, [[43, 1], [43, 2]], true, true, false],
+    [41, 99, [[43, 1], [43, 2]], true, true, false],
+    [252, 17, [[252, 17], [9, 1]], false, true, true],
+    [252, 99, [[9, 1], [9, 2]], true, true, true],
+  ];
+  for (const [page, line, expected, normalizedStart, crossedPage, wrappedBook] of cases) {
+    const plan = runtime.resolveCyclicReadingPlan(manifest, page, line);
+    assert.deepEqual(plan.targets.map(target => [target.pageNumber, target.lineNumber]), expected);
+    assert.deepEqual({ normalizedStart: plan.normalizedStart, crossedPage: plan.crossedPage, wrappedBook: plan.wrappedBook }, { normalizedStart, crossedPage, wrappedBook });
+    assert.deepEqual(plan.requested, { pageNumber: page, lineNumber: line });
+  }
 });
 
-test('readingRules preservan page 009 lines 16 y 17', () => {
-  const line16 = runtime.resolveSelection(manifest, book, 9, 16).readingRule;
-  assert.deepEqual(line16, { playLine: 16, extendWithNextLine: true });
-  const line17 = runtime.resolveSelection(manifest, book, 9, 17).readingRule;
-  assert.deepEqual(line17, { playLine: 16, extendWithNextLine: true, announceLines: [17, 16] });
+test('resolver preserva selección original y siempre entrega dos targets', () => {
+  const selection = runtime.resolveSelection(manifest, book, 42, 1);
+  assert.equal(selection.pageNumber, 42);
+  assert.equal(selection.lineNumber, 1);
+  assert.equal(selection.readingPlan.targets.length, 2);
+});
+
+test('libro con menos de dos renglones falla explícitamente', () => {
+  const tiny = structuredClone(manifest);
+  tiny.pages = { '001': { lineCount: 1 } };
+  tiny.images = [];
+  assert.throws(() => runtime.validateRuntimeManifest(tiny, tiny.bookId), /al menos dos renglones/);
+  assert.throws(() => runtime.resolveCyclicReadingPlan(tiny, 1, 1), /al menos dos renglones/);
 });
 
 test('manifest tiene 252 páginas, 43 imágenes y ningún contenido literario', () => {
@@ -72,4 +95,5 @@ test('manifest tiene 252 páginas, 43 imágenes y ningún contenido literario', 
   assert.equal(manifest.pages['013'].lineCount, 27);
   assert.equal(JSON.stringify(manifest).includes('description'), false);
   assert.equal(JSON.stringify(manifest).includes('sayLines'), false);
+  assert.equal(JSON.stringify(manifest).includes('readingRules'), false);
 });

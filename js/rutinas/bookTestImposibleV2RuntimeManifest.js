@@ -42,20 +42,8 @@
       if (!Number.isInteger(image?.page) || image.page <= 0 || typeof image.imageId !== "string" || !image.imageId) throw new Error(`Runtime manifest: imagen inválida en ${index}.`);
       if (!manifest.pages[pad3(image.page)]) throw new Error(`Runtime manifest: imagen refiere página inexistente ${image.page}.`);
     });
-    if (!manifest.readingRules || typeof manifest.readingRules !== "object" || Array.isArray(manifest.readingRules)) throw new Error("Runtime manifest: readingRules inválido.");
-    for (const [pageKey, rules] of Object.entries(manifest.readingRules)) {
-      const lineCount = manifest.pages[pageKey]?.lineCount;
-      if (!Number.isInteger(lineCount) || lineCount === 0) throw new Error(`Runtime manifest: readingRules refiere página no seleccionable ${pageKey}.`);
-      for (const [lineKey, rule] of Object.entries(rules)) {
-        const line = Number(lineKey);
-        if (!Number.isInteger(line) || line <= 0 || line > lineCount) throw new Error(`Runtime manifest: regla fuera de rango ${pageKey}/${lineKey}.`);
-        const playLine = rule?.playLine ?? line;
-        if (!Number.isInteger(playLine) || playLine <= 0 || playLine > lineCount) throw new Error(`Runtime manifest: playLine inválido ${pageKey}/${lineKey}.`);
-        if (typeof rule.extendWithNextLine !== "undefined" && typeof rule.extendWithNextLine !== "boolean") throw new Error(`Runtime manifest: extendWithNextLine inválido ${pageKey}/${lineKey}.`);
-        if (rule.extendWithNextLine && playLine >= lineCount) throw new Error(`Runtime manifest: continuidad fuera de rango ${pageKey}/${lineKey}.`);
-        if (rule.announceLines && (!Array.isArray(rule.announceLines) || rule.announceLines.some(value => !Number.isInteger(value) || value <= 0 || value > lineCount))) throw new Error(`Runtime manifest: announceLines inválido ${pageKey}/${lineKey}.`);
-      }
-    }
+    const selectableLineCount = Object.values(manifest.pages).reduce((total, page) => total + page.lineCount, 0);
+    if (selectableLineCount < 2) throw new Error("Runtime manifest: el libro debe contener al menos dos renglones seleccionables.");
     return manifest;
   }
 
@@ -69,17 +57,44 @@
     return manifest;
   }
 
+  function resolveCyclicReadingPlan(manifest, pageNumber, lineNumber) {
+    if (!Number.isInteger(pageNumber) || pageNumber <= 0) throw new Error(`Página inválida recibida: ${pageNumber}.`);
+    if (!Number.isInteger(lineNumber) || lineNumber <= 0) throw new Error(`Renglón inválido recibido: ${lineNumber}.`);
+    const targets = Object.entries(manifest.pages)
+      .map(([pageKey, page]) => ({ pageNumber: Number(pageKey), lineCount: page.lineCount }))
+      .filter(page => page.lineCount > 0)
+      .sort((a, b) => a.pageNumber - b.pageNumber)
+      .flatMap(page => Array.from({ length: page.lineCount }, (_, index) => ({ pageNumber: page.pageNumber, lineNumber: index + 1 })));
+    if (targets.length < 2) throw new Error("Runtime manifest: el libro debe contener al menos dos renglones seleccionables.");
+
+    let startIndex = targets.findIndex(target => target.pageNumber === pageNumber && target.lineNumber === lineNumber);
+    let wrappedBook = false;
+    if (startIndex < 0) {
+      startIndex = targets.findIndex(target => target.pageNumber > pageNumber && target.lineNumber === 1);
+      if (startIndex < 0) {
+        startIndex = 0;
+        wrappedBook = true;
+      }
+    }
+    const nextIndex = (startIndex + 1) % targets.length;
+    if (nextIndex === 0) wrappedBook = true;
+    const readingTargets = [targets[startIndex], targets[nextIndex]];
+    return {
+      requested: { pageNumber, lineNumber },
+      targets: readingTargets,
+      normalizedStart: readingTargets[0].pageNumber !== pageNumber || readingTargets[0].lineNumber !== lineNumber,
+      crossedPage: readingTargets[0].pageNumber !== pageNumber || readingTargets[1].pageNumber !== readingTargets[0].pageNumber,
+      wrappedBook,
+    };
+  }
+
   function resolveSelection(manifest, book, pageNumber, lineNumber) {
-    const page = manifest.pages[pad3(pageNumber)];
-    if (!page) throw new Error(`La página ${pageNumber} no existe en el runtime manifest.`);
-    if (page.lineCount === 0) throw new Error(`La página ${pageNumber} no posee renglones seleccionables.`);
-    if (!Number.isInteger(lineNumber) || lineNumber <= 0 || lineNumber > page.lineCount) throw new Error(`Renglón fuera de rango. La página ${pageNumber} tiene ${page.lineCount} líneas.`);
-    return { book, pageNumber, lineNumber, lineCount: page.lineCount, runtimeManifest: manifest, readingRule: manifest.readingRules[pad3(pageNumber)]?.[String(lineNumber)] || null };
+    return { book, pageNumber, lineNumber, runtimeManifest: manifest, readingPlan: resolveCyclicReadingPlan(manifest, pageNumber, lineNumber) };
   }
 
   function clearCache() { manifestCache.clear(); }
 
-  const api = { AUDIO_CONTRACT_V1, validateRuntimeManifest, loadRuntimeManifest, resolveSelection, clearCache, pad3 };
+  const api = { AUDIO_CONTRACT_V1, validateRuntimeManifest, loadRuntimeManifest, resolveCyclicReadingPlan, resolveSelection, clearCache, pad3 };
   global.BookTestImposibleV2RuntimeManifest = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);

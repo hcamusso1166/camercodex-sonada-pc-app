@@ -132,3 +132,12 @@ test('SHOW_SKETCH failure is logged without retry and Image Encore completes', a
   assert.equal(state.logs.some(line => line.includes('[SHOW_SKETCH]') && line.includes('Q5 disconnected')), true);
   assert.equal(state.logs.some(line => line.includes('[IMAGE-ENCORE] complete')), true);
 });
+
+test('reading target UX avanza ready/ready, read/ready, read/read', () => {
+  const dev = loadRoutine();
+  const plan = { targets: [{ pageNumber: 107, lineNumber: 3 }, { pageNumber: 107, lineNumber: 4 }] };
+  const statuses = progress => dev.buildReadingStatusItems(plan, progress).map(item => item.completed ? 'read' : 'ready');
+  assert.deepEqual(statuses([false, false]), ['ready', 'ready']);
+  assert.deepEqual(statuses([true, false]), ['read', 'ready']);
+  assert.deepEqual(statuses([true, true]), ['read', 'read']);
+});

@@ -955,21 +955,5 @@
       "page": 246,
       "imageId": "image-001"
     }
-  ],
-  "readingRules": {
-    "009": {
-      "16": {
-        "playLine": 16,
-        "extendWithNextLine": true
-      },
-      "17": {
-        "playLine": 16,
-        "extendWithNextLine": true,
-        "announceLines": [
-          17,
-          16
-        ]
-      }
-    }
-  }
+  ]
 }

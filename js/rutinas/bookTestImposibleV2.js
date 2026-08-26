@@ -14,10 +14,10 @@ const BTI_V2_Q5_ANTENNA_IDS = Object.freeze([2, 3, 4, 5, 6]);
 const BTI_V2_PHASES = Object.freeze({
   DETECCION: "DETECCION",
   RESOLUCION: "RESOLUCION",
-  WAITING_GATE_FOR_SELECTED_LINE: "WAITING_GATE_FOR_SELECTED_LINE",
-  PLAYING_SELECTED_LINE: "PLAYING_SELECTED_LINE",
-  WAITING_GATE_FOR_LINE_PLUS_1: "WAITING_GATE_FOR_LINE_PLUS_1",
-  PLAYING_LINE_PLUS_1: "PLAYING_LINE_PLUS_1",
+  WAITING_GATE_FOR_READING_TARGET_1: "WAITING_GATE_FOR_READING_TARGET_1",
+  PLAYING_READING_TARGET_1: "PLAYING_READING_TARGET_1",
+  WAITING_GATE_FOR_READING_TARGET_2: "WAITING_GATE_FOR_READING_TARGET_2",
+  PLAYING_READING_TARGET_2: "PLAYING_READING_TARGET_2",
   WAITING_IMAGE_ENCORE_TRIGGER: "WAITING_IMAGE_ENCORE_TRIGGER",
   IMAGE_ENCORE_RESOLVING: "IMAGE_ENCORE_RESOLVING",
   IMAGE_ENCORE_PLAYING: "IMAGE_ENCORE_PLAYING",
@@ -44,6 +44,7 @@ const routineState = {
   selectionLocked: false,
   lockedSelection: null,
   currentGateStep: 0,
+  readingProgress: [false, false],
   imageEncore: null,
   preparedImageEncore: null,
   preparedImageAudioPath: null,
@@ -514,6 +515,7 @@ async function handleDetectionFinishGate() {
     routineState.selectionLocked = true;
     routineState.phase = BTI_V2_PHASES.RESOLUCION;
     routineState.currentGateStep = 0;
+    routineState.readingProgress = [false, false];
     routineState.lockedSelection = {
       book: routineState.currentBook,
       page,
@@ -531,8 +533,8 @@ async function handleDetectionFinishGate() {
     renderDeviceStatuses();
     logInfo("[BTI_V2] Playing resolution audio: book/page/line once", "AUDIO");
     await playResolutionAudio(selection);
-    routineState.phase = BTI_V2_PHASES.WAITING_GATE_FOR_SELECTED_LINE;
-    logInfo("[BTI_V2] Waiting antenna 8 for selected line", "BLE");
+    routineState.phase = BTI_V2_PHASES.WAITING_GATE_FOR_READING_TARGET_1;
+    logInfo("[BTI_V2] Waiting antenna 8 for reading target 1", "BLE");
     updatePayloadStatus("Selección fijada. Esperando Antena 8 para reproducir el renglón elegido.", false);
     renderDeviceStatuses();
   } catch (error) {
@@ -552,22 +554,28 @@ if (routineState.phase === BTI_V2_PHASES.COMPLETE || routineState.phase === BTI_
     updatePayloadStatus("No hay selección fijada para avanzar.", true);
     return;
   }
-  if (routineState.phase === BTI_V2_PHASES.WAITING_GATE_FOR_SELECTED_LINE) {
-    routineState.phase = BTI_V2_PHASES.PLAYING_SELECTED_LINE;
-    logInfo("[BTI_V2] Playing selected line twice", "AUDIO");
+  if (routineState.phase === BTI_V2_PHASES.WAITING_GATE_FOR_READING_TARGET_1) {
+    routineState.phase = BTI_V2_PHASES.PLAYING_READING_TARGET_1;
+    logInfo("[BTI_V2] Playing reading target 1 twice", "AUDIO");
     renderDeviceStatuses();
-    await playLineAudio(selection, 0);
-    routineState.phase = BTI_V2_PHASES.WAITING_GATE_FOR_LINE_PLUS_1;
-    logInfo("[BTI_V2] Waiting antenna 8 for line +1", "BLE");
-    updatePayloadStatus("Esperando Antena 8 para reproducir renglón +1.", false);
+    if (await playReadingTarget(selection, 0)) {
+      routineState.readingProgress[0] = true;
+      renderSelection(selection);
+    }
+    routineState.phase = BTI_V2_PHASES.WAITING_GATE_FOR_READING_TARGET_2;
+    logInfo("[BTI_V2] Waiting antenna 8 for reading target 2", "BLE");
+    updatePayloadStatus("Esperando Antena 8 para reproducir el segundo renglón.", false);
     renderDeviceStatuses();
     return;
   }
-  if (routineState.phase === BTI_V2_PHASES.WAITING_GATE_FOR_LINE_PLUS_1) {
-    routineState.phase = BTI_V2_PHASES.PLAYING_LINE_PLUS_1;
-    logInfo("[BTI_V2] Playing line +1 twice", "AUDIO");
+  if (routineState.phase === BTI_V2_PHASES.WAITING_GATE_FOR_READING_TARGET_2) {
+    routineState.phase = BTI_V2_PHASES.PLAYING_READING_TARGET_2;
+    logInfo("[BTI_V2] Playing reading target 2 twice", "AUDIO");
     renderDeviceStatuses();
-    await playLineAudio(selection, 1);
+    if (await playReadingTarget(selection, 1)) {
+      routineState.readingProgress[1] = true;
+      renderSelection(selection);
+    }
     routineState.phase = BTI_V2_PHASES.WAITING_IMAGE_ENCORE_TRIGGER;
     routineState.imageEncoreTriggerConsumed = false;
     logInfo("[IMAGE-ENCORE] Waiting antenna 8 for image encore", "BLE");
@@ -687,7 +695,7 @@ function clearPreparedImageEncore() {
   routineState.preparedImageAudioPath = audioPath;
   showAudio?.preload(audioPath);
   logInfo(`[IMAGE-ENCORE] prepared targetPage=${result.targetPage} imageId=${result.imageId} resolveMs=${(performance.now() - startedAt).toFixed(2)}`, "BTI_V2");
-  logInfo(`[IMAGE-ENCORE] audio preload requested path=${result.audio}`, "AUDIO");
+  logInfo(`[IMAGE-ENCORE] audio preload requested path=${audioPath}`, "AUDIO");
   return result;
 }
 
@@ -730,20 +738,15 @@ function renderImageEncore(result) {
   });
 }
 
-function buildLineQueue(selection, offset = 0) {
-  const line = selection.lineNumber + offset;
-  if (line > selection.lineCount) {
-    logInfo(`[BTI_V2] Skipping line +${offset} because it does not exist`, "AUDIO");
-    return [];
-  }
-  const rule = selection.runtimeManifest.readingRules[String(selection.pageNumber).padStart(3, "0")]?.[String(line)] || null;
-  const context = showAudio.resolveReadingContext(selection.book.bookId, selection.pageNumber, line, rule);
+function buildReadingTargetQueue(selection, targetIndex) {
+  const target = selection.readingPlan.targets[targetIndex];
+  const context = showAudio.resolveReadingContext(selection.book.bookId, target.pageNumber, target.lineNumber);
   const takes = showAudio.getClassicTakeUrls(context);
   return showAudio.playClassicReadingTwoTakes(context, takes);
 }
 
 function buildResolutionQueue(selection) {
-  const context = showAudio.resolveReadingContext(selection.book.bookId, selection.pageNumber, selection.lineNumber, selection.readingRule);
+  const context = showAudio.resolveReadingContext(selection.book.bookId, selection.pageNumber, selection.lineNumber);
   return showAudio.buildResolutionBookPageLineOnceQueue(context);
 }
 
@@ -760,8 +763,9 @@ async function playResolutionAudio(selection) {
   await playQueueItems(buildResolutionQueue(selection), "No hay audios disponibles para el anuncio libro/página/renglón.");
 }
 
-async function playLineAudio(selection, offset) {
-  await playQueueItems(buildLineQueue(selection, offset), `No hay audios disponibles para el renglón +${offset}.`);
+async function playReadingTarget(selection, targetIndex) {
+  await playQueueItems(buildReadingTargetQueue(selection, targetIndex), `No hay audios disponibles para reading target ${targetIndex + 1}.`);
+  return showAudio.status === "completed";
 }
 
 async function replayLockedSelection() {
@@ -773,8 +777,8 @@ async function replayLockedSelection() {
   logInfo("[BTI_V2] Replay locked selection requested", "AUDIO");
   const queue = [
     ...buildResolutionQueue(selection),
-    ...buildLineQueue(selection, 0),
-    ...buildLineQueue(selection, 1),
+    ...buildReadingTargetQueue(selection, 0),
+    ...buildReadingTargetQueue(selection, 1),
   ];
   await playQueueItems(queue, "No hay cola disponible para Replay.");
     if (showAudio?.status === "completed") {
@@ -830,22 +834,20 @@ async function handleDeviceSelectionEvent(selectionPayload) {
   try {
     const selection = await resolveSelection(routineState.currentBook, selectionPayload.page, selectionPayload.line);
     routineState.currentSelection = selection;
+    routineState.readingProgress = [false, false];
     renderSelection(selection);
     updatePayloadStatus(`Selección resuelta: pág ${selection.pageNumber}, línea ${selection.lineNumber}.`, false);
     logInfo(`Selección resuelta para ${selection.book.bookId}.`, "DATA");
 
-    const requestedLine = Number(selectionPayload.line ?? selection.lineNumber ?? 0);
-    if (!Number.isInteger(requestedLine) || requestedLine <= 0 || requestedLine > selection.lineCount) {
-      logError(`[AUDIO] Línea inválida para show-time: ${requestedLine}. La página admite 1..${selection.lineCount}.`, "AUDIO");
-      return;
+    await playQueueItems([
+      ...buildResolutionQueue(selection),
+      ...buildReadingTargetQueue(selection, 0),
+      ...buildReadingTargetQueue(selection, 1),
+    ]);
+    if (showAudio.status === "completed") {
+      routineState.readingProgress = [true, true];
+      renderSelection(selection);
     }
-    await showAudio.playShowDevSequence({
-      bookId: selection.book.bookId,
-      page: selection.pageNumber,
-      line: requestedLine,
-      pageLineCount: selection.lineCount,
-      readingRules: selection.runtimeManifest.readingRules[String(selection.pageNumber).padStart(3, "0")] || {},
-    });
   } catch (error) {
     updatePayloadStatus(error.message, true);
     logError(error.message, "DATA");
@@ -1220,6 +1222,7 @@ function resetRoutineState() {
   routineState.selectionLocked = false;
   routineState.lockedSelection = null;
   routineState.currentGateStep = 0;
+  routineState.readingProgress = [false, false];
   routineState.imageEncore = null;
   clearPreparedImageEncore();
   routineState.imageEncoreTriggerConsumed = false;
@@ -1256,6 +1259,7 @@ function resetBtiV2FlowForNewDetection() {
   routineState.selectionLocked = false;
   routineState.lockedSelection = null;
   routineState.currentGateStep = 0;
+  routineState.readingProgress = [false, false];
   routineState.imageEncore = null;
   clearPreparedImageEncore();
   routineState.imageEncoreTriggerConsumed = false;
@@ -1320,10 +1324,10 @@ function renderPhaseStatus() {
   const labels = {
     [BTI_V2_PHASES.DETECCION]: "Detección",
     [BTI_V2_PHASES.RESOLUCION]: "Resolución",
-    [BTI_V2_PHASES.WAITING_GATE_FOR_SELECTED_LINE]: "Esperando avance",
-    [BTI_V2_PHASES.PLAYING_SELECTED_LINE]: "Reproduciendo",
-    [BTI_V2_PHASES.WAITING_GATE_FOR_LINE_PLUS_1]: "Esperando avance",
-    [BTI_V2_PHASES.PLAYING_LINE_PLUS_1]: "Reproduciendo",
+    [BTI_V2_PHASES.WAITING_GATE_FOR_READING_TARGET_1]: "Esperando avance",
+    [BTI_V2_PHASES.PLAYING_READING_TARGET_1]: "Reproduciendo",
+    [BTI_V2_PHASES.WAITING_GATE_FOR_READING_TARGET_2]: "Esperando avance",
+    [BTI_V2_PHASES.PLAYING_READING_TARGET_2]: "Reproduciendo",
     [BTI_V2_PHASES.WAITING_IMAGE_ENCORE_TRIGGER]: "Esperando Encore de imagen",
     [BTI_V2_PHASES.IMAGE_ENCORE_RESOLVING]: "Resolviendo Encore de imagen",
     [BTI_V2_PHASES.IMAGE_ENCORE_PLAYING]: "Encore de imagen",
@@ -1423,21 +1427,26 @@ function renderSelection(selection) {
   ui.resolvedLine.textContent = String(selection.lineNumber);
   ui.resolvedContextList.innerHTML = "";
 
-  const items = [
-    { label: "Elegida", lineNumber: selection.lineNumber, selected: true },
-  ];
-  if (selection.lineNumber < selection.lineCount) {
-    items.push({ label: "Siguiente", lineNumber: selection.lineNumber + 1, selected: false });
-  }
+  const items = buildReadingStatusItems(selection.readingPlan, routineState.readingProgress);
 
   items.forEach(item => {
     const li = document.createElement("li");
-    li.textContent = `${item.label} (L${item.lineNumber}): Línea leída`;
+    li.textContent = `${item.label} (L${item.lineNumber}): ${item.completed ? "Línea leída" : "Lista para leer"}`;
     if (item.selected) {
       li.style.fontWeight = "700";
     }
     ui.resolvedContextList.appendChild(li);
   });
+}
+
+function buildReadingStatusItems(readingPlan, progress = [false, false]) {
+  return readingPlan.targets.map((target, index) => ({
+    label: index === 0 ? "Elegida" : "Siguiente",
+    lineNumber: target.lineNumber,
+    pageNumber: target.pageNumber,
+    selected: index === 0,
+    completed: progress[index] === true,
+  }));
 }
 
 function updatePayloadStatus(message, isError) {
@@ -1482,6 +1491,7 @@ window.resetBtiV2FlowForNewDetection = resetBtiV2FlowForNewDetection;
 window.setBookTestImposibleV2DeviceState = setBookTestImposibleV2DeviceState;
 
 window.bookTestImposibleV2Dev = {
+  buildReadingStatusItems,
   resolveBookByDeviceCode,
   parseSelectionPayload,
   buildImageTakePath,
