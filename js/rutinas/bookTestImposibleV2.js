@@ -1315,12 +1315,16 @@ function renderSelection(selection) {
 
   items.forEach(item => {
     const li = document.createElement("li");
-    li.textContent = `${item.label} (L${item.lineNumber}): ${item.completed ? "Línea leída" : "Lista para leer"}`;
+    li.textContent = formatReadingStatusItem(item);
     if (item.selected) {
       li.style.fontWeight = "700";
     }
     ui.resolvedContextList.appendChild(li);
   });
+}
+
+function formatReadingStatusItem(item) {
+  return `${item.label} (P${item.pageNumber} / L${item.lineNumber}): ${item.completed ? "Línea leída" : "Lista para leer"}`;
 }
 
 function buildReadingStatusItems(readingPlan, progress = [false, false]) {
@@ -1376,6 +1380,7 @@ window.setBookTestImposibleV2DeviceState = setBookTestImposibleV2DeviceState;
 
 window.bookTestImposibleV2Dev = {
   buildReadingStatusItems,
+  formatReadingStatusItem,
   resolveBookByDeviceCode,
   parseSelectionPayload,
   buildImageTakePath,

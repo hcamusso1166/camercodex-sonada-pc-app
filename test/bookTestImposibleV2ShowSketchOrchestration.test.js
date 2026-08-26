@@ -135,9 +135,20 @@ test('SHOW_SKETCH failure is logged without retry and Image Encore completes', a
 
 test('reading target UX avanza ready/ready, read/ready, read/read', () => {
   const dev = loadRoutine();
-  const plan = { targets: [{ pageNumber: 107, lineNumber: 3 }, { pageNumber: 107, lineNumber: 4 }] };
+  const plan = { requested: { pageNumber: 9, lineNumber: 17 }, targets: [{ pageNumber: 9, lineNumber: 17 }, { pageNumber: 10, lineNumber: 1 }] };
   const statuses = progress => dev.buildReadingStatusItems(plan, progress).map(item => item.completed ? 'read' : 'ready');
   assert.deepEqual(statuses([false, false]), ['ready', 'ready']);
   assert.deepEqual(statuses([true, false]), ['read', 'ready']);
   assert.deepEqual(statuses([true, true]), ['read', 'read']);
+  const crossPage = dev.buildReadingStatusItems(plan, [false, true]);
+  assert.deepEqual(crossPage.map(({ pageNumber, lineNumber }) => [pageNumber, lineNumber]), [[9, 17], [10, 1]]);
+  assert.deepEqual(crossPage.map(dev.formatReadingStatusItem), [
+    'Elegida (P9 / L17): Lista para leer',
+    'Siguiente (P10 / L1): Línea leída',
+  ]);
+  const samePage = dev.buildReadingStatusItems({ targets: [{ pageNumber: 9, lineNumber: 16 }, { pageNumber: 9, lineNumber: 17 }] });
+  assert.deepEqual(samePage.map(dev.formatReadingStatusItem), [
+    'Elegida (P9 / L16): Lista para leer',
+    'Siguiente (P9 / L17): Lista para leer',
+  ]);
 });
