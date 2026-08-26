@@ -24,6 +24,19 @@ test('varias imágenes de la misma página conservan la primera', () => {
   assert.equal(manifest.images.filter(image => image.page === 155).length, 2);
 });
 
+test('Image Encore elige la menor página elegible aunque images esté desordenado', () => {
+  const images = [
+    { page: 109, imageId: 'image-001' },
+    { page: 61, imageId: 'image-001' },
+    { page: 11, imageId: 'image-001' },
+    { page: 61, imageId: 'image-002' },
+  ];
+  const original = structuredClone(images);
+  const result = resolveManifestBookImage({ bookId, sourcePage: 60, images });
+  assert.deepEqual({ targetPage: result.targetPage, imageId: result.imageId }, { targetPage: 61, imageId: 'image-001' });
+  assert.deepEqual(images, original);
+});
+
 test('audio de imagen se deriva por convención con tres takes', () => {
   assert.equal(buildImageAudioPath({ bookId, page: 109, imageId: 'image-001', take: 'p1' }), `${bookId}/audios/page-109/images/image-001_p1.mp3`);
   assert.equal(buildImageAudioQueue({ bookId, page: 109, imageId: 'image-001' }).filter(item => item.type === 'audio').length, 3);

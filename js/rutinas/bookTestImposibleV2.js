@@ -968,100 +968,8 @@ function normalizeShowSelectionLine(page, line) {
   return line;
 }
 
-async function resolveLocalLineTakes(bookId, page, line, assetExistsChecker) {
-  const parts = ["p1", "p2", "p3"];
-  const resolved = [];
-
-  for (const part of parts) {
-    const candidates = buildLineTakeCandidates(bookId, page, line, part);
-    let found = null;
-
-    for (const candidate of candidates) {
-      const ok = await assetExistsChecker(candidate);
-      console.log("CHECK", { part, candidate, ok });
-      if (ok) {
-        found = candidate;
-        break;
-      }
-    }
-
-    if (!found) {
-      return [];
-    }
-
-    resolved.push(found);
-  }
-
-  return resolved;
-}
-
-async function buildShowAudioQueue(selection) {
-  const warnings = [];
-const bookId = selection.book.bookId || selection.book.id;
-
-  const takes = await resolveLocalLineTakes(bookId, selection.pageNumber, selection.lineNumber, assetExists);
-  if (!takes.length) {
-    warnings.push("No se encontraron takes locales para la línea seleccionada.");
-    return { queue: [], warnings };
-  }
-
-    const queue = [
-    { type: "audio", src: takes[0], label: "take:p1" },
-    { type: "pause", ms: 700, label: "pause:p1-p2" },
-    { type: "audio", src: takes[1], label: "take:p2" },
-    { type: "pause", ms: 900, label: "pause:p2-p3" },
-    { type: "audio", src: takes[2], label: "take:p3" },
-  ];
-
-  const titleCandidates = buildMetaAudioCandidates(bookId, "title");
-  const authorCandidates = buildMetaAudioCandidates(bookId, "author");
-  const title = await resolveFirstExisting(titleCandidates, assetExists);
-  const author = await resolveFirstExisting(authorCandidates, assetExists);
-
-  if (title) {
-    queue.push({ type: "pause", ms: 1000, label: "pause:after-p3" });
-    queue.push({ type: "audio", src: title, label: "book:title" });
-  } else {
-    warnings.push(`Asset faltante: ${titleCandidates[0]}`);
-  }
-
-  if (author) {
-    if (title) {
-      queue.push({ type: "pause", ms: 350, label: "pause:title-author" });
-    } else {
-      queue.push({ type: "pause", ms: 1000, label: "pause:after-p3" });
-    }
-    queue.push({ type: "audio", src: author, label: "book:author" });
-  } else {
-    warnings.push(`Asset faltante: ${authorCandidates[0]}`);
-  }
-
-  warnings.push("Audio numérico de página/renglón diferido en fase mínima.");
-
-  return { queue, warnings };
-}
-
 function pad3(value) {
   return String(value).padStart(3, "0");
-}
-
-function pad2(value) {
-  return String(value).padStart(2, "0");
-}
-
-function buildMetaAudioCandidates(bookId, kind) {
-  return [
-    `../books/${bookId}/audios/_meta/${kind}.mp3`,
-  ];
-}
-
-function buildLineTakeCandidates(bookId, page, line, part) {
-  const pageFolder = `../books/${bookId}/audios/page-${pad3(page)}`;
-
-  return [
-    `${pageFolder}/line-${pad3(line)}_${part}.mp3`,
-    `${pageFolder}/line-${pad2(line)}_${part}.mp3`,
-  ];
 }
 
 function buildImageTakePath(bookId, page, imageId, part) {
@@ -1081,31 +989,6 @@ async function resolveFirstExisting(candidates, assetExistsChecker) {
     }
   }
   return null;
-}
-
-async function resolveLocalLineTakes(bookId, page, line, assetExistsChecker) {
-  const parts = ["p1", "p2", "p3"];
-  const resolved = [];
-
-  for (const part of parts) {
-    const candidates = buildLineTakeCandidates(bookId, page, line, part);
-
-    let found = null;
-    for (const candidate of candidates) {
-      if (await assetExistsChecker(candidate)) {
-        found = candidate;
-        break;
-      }
-    }
-
-    if (!found) {
-      return [];
-    }
-
-    resolved.push(found);
-  }
-
-  return resolved;
 }
 
 async function resolveLocalImageTakes(bookId, page, imageId, assetExistsChecker) {

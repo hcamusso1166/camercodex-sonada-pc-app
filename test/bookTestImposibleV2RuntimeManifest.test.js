@@ -65,6 +65,12 @@ test('validator acepta overrides 1/2 y rechaza páginas vacías, renglones inexi
   }
 });
 
+test('validator rechaza campos desconocidos y texto literario en images', () => {
+  const invalid = structuredClone(manifest);
+  invalid.images[0].description = 'texto literario';
+  assert.throws(() => runtime.validateRuntimeManifest(invalid, invalid.bookId), /campo no permitido en imagen.*description/);
+});
+
 test('partCount usa overrides 1/2 y default 3 en casos físicos congelados', () => {
   assert.equal(runtime.resolveReadingPartCount(manifest, 9, 17), 1);
   assert.equal(runtime.resolveReadingPartCount(manifest, 41, 17), 1);

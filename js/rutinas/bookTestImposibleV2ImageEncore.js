@@ -26,7 +26,10 @@
 
   function resolveManifestBookImage({ bookId, sourcePage, images }) {
     const normalizedSourcePage = Number(sourcePage);
-    const image = (Array.isArray(images) ? images : []).find(item => item.page >= normalizedSourcePage);
+    const image = (Array.isArray(images) ? images : []).reduce((nearest, item) => {
+      if (item.page < normalizedSourcePage || (nearest && nearest.page <= item.page)) return nearest;
+      return item;
+    }, null);
     if (!image) return { found: false, bookId, sourcePage: normalizedSourcePage, navigationType: NAVIGATION_TYPES.NO_IMAGE_FOUND, navigationText: buildImageNavigationText({ navigationType: NAVIGATION_TYPES.NO_IMAGE_FOUND }) };
     return { found: true, bookId, sourcePage: normalizedSourcePage, targetPage: image.page, imageId: image.imageId, ...resolveImageNavigation({ sourcePage: normalizedSourcePage, targetPage: image.page }) };
   }

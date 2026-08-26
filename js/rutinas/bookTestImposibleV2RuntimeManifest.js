@@ -58,6 +58,8 @@
     if (audio?.images?.pathPattern !== AUDIO_CONTRACT_V1.imagePattern) throw new Error("Runtime manifest: audio.images.pathPattern inválido para bti-audio-v1.");
     if (!Array.isArray(manifest.images)) throw new Error("Runtime manifest: images inválido.");
     manifest.images.forEach((image, index) => {
+      const unknownImageFields = Object.keys(image || {}).filter(key => !["page", "imageId"].includes(key));
+      if (unknownImageFields.length) throw new Error(`Runtime manifest: campo no permitido en imagen ${index}: ${unknownImageFields[0]}.`);
       if (!Number.isInteger(image?.page) || image.page <= 0 || typeof image.imageId !== "string" || !image.imageId) throw new Error(`Runtime manifest: imagen inválida en ${index}.`);
       if (!manifest.pages[pad3(image.page)]) throw new Error(`Runtime manifest: imagen refiere página inexistente ${image.page}.`);
     });

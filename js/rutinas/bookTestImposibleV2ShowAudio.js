@@ -33,8 +33,6 @@
         playbackLineNumber: selectedLineNumber,
         tpStartLineNumber: selectedLineNumber,
         classicMode: "normal",
-        lineAnnouncementMode: "single",
-        lineAnnouncementNumbers: [selectedLineNumber],
         partCount,
       };
     }
@@ -246,9 +244,6 @@
         "INFO",
         `[AUDIO] Preparando show-time general page=${this.pad3(page)} selectedLine=${this.pad3(line)} playbackLine=${this.pad3(context.playbackLineNumber)} mode=${context.classicMode}`
       );
-      if (context.lineAnnouncementMode === "pair") {
-        this.log("INFO", "[AUDIO] Post-show anunciará línea especial compuesta: 17 y 16.");
-      }
       try {
         await this.playQueue();
         if (this.status === "completed") {
@@ -417,31 +412,10 @@
     }
 
     buildLineAnnouncement(context) {
-      if (context.lineAnnouncementMode === "single") {
-        const [lineNumber] = context.lineAnnouncementNumbers;
-        return {
-          sources: this.buildAnnouncementNumberSources([lineNumber]),
-          log: this.describeAnnouncementNumberSequence([lineNumber]),
-        };
-      }
-
-      if (context.lineAnnouncementMode === "pair") {
-        const [firstLine, secondLine] = context.lineAnnouncementNumbers;
-        this.log("INFO", "[AUDIO] Anuncio final especial: Renglón 17 y 16");
+      const lineNumber = Number(context.playbackLineNumber) || 0;
       return {
-        sources: [
-          ...this.buildAnnouncementNumberSources([firstLine]),
-          "../audios/poker/y.mp3",
-          ...this.buildAnnouncementNumberSources([secondLine]),
-        ],
-        log: `${firstLine} + y + ${secondLine}`,
-      };
-    }
-
-    const fallbackLine = Number(context.playbackLineNumber) || 0;
-      return {
-        sources: this.buildAnnouncementNumberSources([fallbackLine]),
-        log: this.describeAnnouncementNumberSequence([fallbackLine]),
+        sources: this.buildAnnouncementNumberSources([lineNumber]),
+        log: this.describeAnnouncementNumberSequence([lineNumber]),
       };
     }
     
