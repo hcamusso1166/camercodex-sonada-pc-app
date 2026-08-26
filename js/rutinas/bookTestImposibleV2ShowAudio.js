@@ -25,7 +25,7 @@
       };
     }
 
-    resolveReadingContext(bookId, pageNumber, selectedLineNumber) {
+    resolveReadingContext(bookId, pageNumber, selectedLineNumber, partCount = 3) {
       return {
         bookId,
         pageNumber,
@@ -35,6 +35,7 @@
         classicMode: "normal",
         lineAnnouncementMode: "single",
         lineAnnouncementNumbers: [selectedLineNumber],
+        partCount,
       };
     }
 
@@ -229,13 +230,13 @@
       };
     }
 
-    async playClassicLineAudio(bookId, page, line) {
+    async playClassicLineAudio(bookId, page, line, partCount = 3) {
       if (!Number.isInteger(page) || !Number.isInteger(line) || !bookId) {
         this.log("ERROR", `[AUDIO][ERROR] Parámetros inválidos para clásico (bookId=${bookId}, page=${page}, line=${line}).`);
         return;
       }
 
-      const context = this.resolveReadingContext(bookId, page, line);
+      const context = this.resolveReadingContext(bookId, page, line, partCount);
       const queue = this.buildInitialShowQueue(context);
       this.resetClassicPlaybackState();
       this.setQueue(queue, { label: `classic:${bookId}:page-${this.pad3(page)}:line-${this.pad3(context.playbackLineNumber)}` });
@@ -292,44 +293,37 @@
       }
     }
 
-    buildClassicQueueFromTakes(takes) {
+    buildClassicQueueFromTakes(takes, partCount = 3) {
       const pacing = this.classicPacing;
+      const buildTake = (takeNumber, pauseMs, finalPauseMs = pauseMs) => this.buildReadingTake(takes, partCount, takeNumber, pauseMs, finalPauseMs);
       return [
-        { type: "audio", src: takes.p1, label: "Take 1 / p1" },
-        { type: "pause", ms: pacing.PAUSE_SHORT_MS, label: "pause:t1:p1-p2" },
-        { type: "audio", src: takes.p2, label: "Take 1 / p2" },
-        { type: "pause", ms: pacing.PAUSE_SHORT_MS, label: "pause:t1:p2-p3" },
-        { type: "audio", src: takes.p3, label: "Take 1 / p3" },
+        ...buildTake(1, pacing.PAUSE_SHORT_MS),
         { type: "pause", ms: pacing.BETWEEN_TAKE_1_2_MS, label: "pause:t1-t2" },
-        { type: "audio", src: takes.p1, label: "Take 2 / p1" },
-        { type: "pause", ms: pacing.PAUSE_MEDIUM_MS, label: "pause:t2:p1-p2" },
-        { type: "audio", src: takes.p2, label: "Take 2 / p2" },
-        { type: "pause", ms: pacing.PAUSE_MEDIUM_MS, label: "pause:t2:p2-p3" },
-        { type: "audio", src: takes.p3, label: "Take 2 / p3" },
+        ...buildTake(2, pacing.PAUSE_MEDIUM_MS),
         { type: "pause", ms: pacing.BETWEEN_TAKE_2_3_MS, label: "pause:t2-t3" },
-        { type: "audio", src: takes.p1, label: "Take 3 / p1" },
-        { type: "pause", ms: pacing.PAUSE_MEDIUM_MS, label: "pause:t3:p1-p2" },
-        { type: "audio", src: takes.p2, label: "Take 3 / p2" },
-        { type: "pause", ms: pacing.PAUSE_LONG_MS, label: "pause:t3:p2-p3" },
-        { type: "audio", src: takes.p3, label: "Take 3 / p3" },
+        ...buildTake(3, pacing.PAUSE_MEDIUM_MS, pacing.PAUSE_LONG_MS),
       ];
     }
 
     playClassicReadingThreeTakes(context, takes) {
-      void context;
-      return this.buildClassicQueueFromTakes(takes);
+      return this.buildClassicQueueFromTakes(takes, context.partCount);
+    }
+
+    buildReadingTake(takes, partCount, takeNumber, pauseMs, finalPauseMs = pauseMs) {
+      if (![1, 2, 3].includes(partCount)) throw new Error(`partCount inválido para reading audio: ${partCount}.`);
+      const queue = [];
+      for (let part = 1; part <= partCount; part += 1) {
+        if (part > 1) {
+          queue.push({ type: "pause", ms: part === 3 ? finalPauseMs : pauseMs, label: `pause:t${takeNumber}:p${part - 1}-p${part}` });
+        }
+        queue.push({ type: "audio", src: takes[`p${part}`], label: `Take ${takeNumber} / p${part}` });
+      }
+      return queue;
     }
 
     playClassicReadingTwoTakes(context, takes) {
-      void context;
       const pacing = this.classicPacing;
-      const buildTake = (takeNumber, pauseMs) => [
-        { type: "audio", src: takes.p1, label: `Take ${takeNumber} / p1` },
-        { type: "pause", ms: pauseMs, label: `pause:t${takeNumber}:p1-p2` },
-        { type: "audio", src: takes.p2, label: `Take ${takeNumber} / p2` },
-        { type: "pause", ms: pauseMs, label: `pause:t${takeNumber}:p2-p3` },
-        { type: "audio", src: takes.p3, label: `Take ${takeNumber} / p3` },
-      ];
+      const buildTake = (takeNumber, pauseMs) => this.buildReadingTake(takes, context.partCount, takeNumber, pauseMs);
       return [
         ...buildTake(1, pacing.PAUSE_SHORT_MS),
         { type: "pause", ms: pacing.BETWEEN_TAKE_1_2_MS, label: "pause:t1-t2" },

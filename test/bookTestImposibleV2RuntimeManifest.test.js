@@ -28,6 +28,7 @@ test('validator congela exactamente el contrato de audio V1', () => {
     ['reading.takes incompletos', draft => { draft.audio.reading.takes = ['p1', 'p2']; }],
     ['reading.takes adicionales', draft => { draft.audio.reading.takes = ['p1', 'p2', 'p3', 'p4']; }],
     ['reading.takes desordenados', draft => { draft.audio.reading.takes = ['p2', 'p1', 'p3']; }],
+    ['reading.defaultPartCount', draft => { draft.audio.reading.defaultPartCount = 2; }],
     ['reading.pathPattern', draft => { draft.audio.reading.pathPattern = 'audios/{take}.mp3'; }],
     ['images.takes', draft => { draft.audio.images.takes = ['p1', 'p2']; }],
     ['images.takes desordenados', draft => { draft.audio.images.takes = ['p2', 'p1', 'p3']; }],
@@ -44,6 +45,60 @@ test('validator congela exactamente el contrato de audio V1', () => {
       label
     );
   }
+});
+
+test('validator acepta overrides 1/2 y rechaza páginas vacías, renglones inexistentes y valores no permitidos', () => {
+  const valid = structuredClone(manifest);
+  valid.pages['009'].partCountOverrides = { '001': 1, '002': 2 };
+  assert.equal(runtime.validateRuntimeManifest(valid, valid.bookId), valid);
+  const mutations = [
+    draft => { draft.pages['001'].partCountOverrides = { '001': 1 }; },
+    draft => { draft.pages['009'].partCountOverrides = { '000': 1 }; },
+    draft => { draft.pages['009'].partCountOverrides = { '018': 1 }; },
+    draft => { draft.pages['009'].partCountOverrides = { '001': 3 }; },
+    draft => { draft.pages['009'].partCountOverrides = { '001': 'PLUMMER.' }; },
+    draft => { draft.pages['009'].sayLines = ['texto literario']; },
+  ];
+  for (const mutate of mutations) {
+    const invalid = structuredClone(manifest); mutate(invalid);
+    assert.throws(() => runtime.validateRuntimeManifest(invalid, invalid.bookId), /partCountOverrides|renglón inválido|partCount inválido|campo no permitido/);
+  }
+});
+
+test('partCount usa overrides 1/2 y default 3 en casos físicos congelados', () => {
+  assert.equal(runtime.resolveReadingPartCount(manifest, 9, 17), 1);
+  assert.equal(runtime.resolveReadingPartCount(manifest, 41, 17), 1);
+  assert.equal(runtime.resolveReadingPartCount(manifest, 11, 6), 2);
+  assert.equal(runtime.resolveReadingPartCount(manifest, 9, 16), 3);
+  assert.throws(() => runtime.resolveReadingPartCount(manifest, 9, 18), /inexistente/);
+});
+
+test('manifest contiene 228 overrides y distribución efectiva 131/97/5224', () => {
+  const distribution = { 1: 0, 2: 0, 3: 0 }; let overrides = 0;
+  for (const [pageKey, page] of Object.entries(manifest.pages)) {
+    for (let line = 1; line <= page.lineCount; line += 1) {
+      const partCount = runtime.resolveReadingPartCount(manifest, Number(pageKey), line);
+      distribution[partCount] += 1; if (partCount < 3) overrides += 1;
+    }
+  }
+  assert.deepEqual(distribution, { 1: 131, 2: 97, 3: 5224 });
+  assert.equal(overrides, 228);
+  assert.equal(Object.values(distribution).reduce((total, count) => total + count, 0), 5452);
+});
+
+test('overrides del manifest coinciden con la regla build-time basada en sayLines', () => {
+  const derived = { 1: 0, 2: 0, 3: 0 };
+  for (const [pageKey, page] of Object.entries(manifest.pages)) {
+    if (page.lineCount === 0) continue;
+    const legacy = JSON.parse(fs.readFileSync(`books/${manifest.bookId}/pages/page-${pageKey}.json`, 'utf8'));
+    legacy.sayLines.forEach((line, index) => {
+      const partCount = Math.min(3, line.trim().split(/\s+/).filter(Boolean).length);
+      assert.ok(partCount > 0, `${pageKey}/${String(index + 1).padStart(3, '0')}`);
+      assert.equal(runtime.resolveReadingPartCount(manifest, Number(pageKey), index + 1), partCount);
+      derived[partCount] += 1;
+    });
+  }
+  assert.deepEqual(derived, { 1: 131, 2: 97, 3: 5224 });
 });
 
 test('page 107 resuelve lineCount 27, siguiente y último renglón', () => {

@@ -740,7 +740,8 @@ function renderImageEncore(result) {
 
 function buildReadingTargetQueue(selection, targetIndex) {
   const target = selection.readingPlan.targets[targetIndex];
-  const context = showAudio.resolveReadingContext(selection.book.bookId, target.pageNumber, target.lineNumber);
+  const partCount = window.BookTestImposibleV2RuntimeManifest.resolveReadingPartCount(selection.runtimeManifest, target.pageNumber, target.lineNumber);
+  const context = showAudio.resolveReadingContext(selection.book.bookId, target.pageNumber, target.lineNumber, partCount);
   const takes = showAudio.getClassicTakeUrls(context);
   return showAudio.playClassicReadingTwoTakes(context, takes);
 }

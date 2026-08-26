@@ -5,6 +5,7 @@
     metaTitle: "audios/_meta/title.mp3",
     metaAuthor: "audios/_meta/author.mp3",
     readingTakes: Object.freeze(["p1", "p2", "p3"]),
+    defaultReadingPartCount: 3,
     readingPattern: "audios/page-{page3}/line-{line3}_{take}.mp3",
     imageTakes: Object.freeze(["p1", "p2", "p3"]),
     imagePattern: "audios/page-{page3}/images/{imageId}_{take}.mp3",
@@ -28,12 +29,30 @@
       const page = Number(pageKey);
       if (!Number.isInteger(page) || page <= 0 || pad3(page) !== pageKey) throw new Error(`Runtime manifest: página inválida ${pageKey}.`);
       if (!Number.isInteger(config?.lineCount) || config.lineCount < 0) throw new Error(`Runtime manifest: lineCount inválido en ${pageKey}.`);
+      const unknownPageFields = Object.keys(config).filter(key => !["lineCount", "partCountOverrides"].includes(key));
+      if (unknownPageFields.length) throw new Error(`Runtime manifest: campo no permitido en ${pageKey}: ${unknownPageFields[0]}.`);
+      if (config.partCountOverrides !== undefined) {
+        if (config.lineCount === 0) throw new Error(`Runtime manifest: partCountOverrides no permitido en página vacía ${pageKey}.`);
+        if (!config.partCountOverrides || typeof config.partCountOverrides !== "object" || Array.isArray(config.partCountOverrides)) {
+          throw new Error(`Runtime manifest: partCountOverrides inválido en ${pageKey}.`);
+        }
+        for (const [lineKey, partCount] of Object.entries(config.partCountOverrides)) {
+          const line = Number(lineKey);
+          if (!Number.isInteger(line) || line <= 0 || pad3(line) !== lineKey || line > config.lineCount) {
+            throw new Error(`Runtime manifest: renglón inválido ${pageKey}/${lineKey} en partCountOverrides.`);
+          }
+          if (partCount !== 1 && partCount !== 2) {
+            throw new Error(`Runtime manifest: partCount inválido ${pageKey}/${lineKey}; sólo se permiten overrides 1 o 2.`);
+          }
+        }
+      }
     }
     const audio = manifest.audio;
     if (audio?.profile !== AUDIO_CONTRACT_V1.profile) throw new Error("Runtime manifest: audio.profile inválido para bti-audio-v1.");
     if (audio?.meta?.title !== AUDIO_CONTRACT_V1.metaTitle) throw new Error("Runtime manifest: audio.meta.title inválido para bti-audio-v1.");
     if (audio?.meta?.author !== AUDIO_CONTRACT_V1.metaAuthor) throw new Error("Runtime manifest: audio.meta.author inválido para bti-audio-v1.");
     if (!hasExactValues(audio?.reading?.takes, AUDIO_CONTRACT_V1.readingTakes)) throw new Error("Runtime manifest: audio.reading.takes inválido para bti-audio-v1.");
+    if (audio?.reading?.defaultPartCount !== AUDIO_CONTRACT_V1.defaultReadingPartCount) throw new Error("Runtime manifest: audio.reading.defaultPartCount inválido para bti-audio-v1.");
     if (audio?.reading?.pathPattern !== AUDIO_CONTRACT_V1.readingPattern) throw new Error("Runtime manifest: audio.reading.pathPattern inválido para bti-audio-v1.");
     if (!hasExactValues(audio?.images?.takes, AUDIO_CONTRACT_V1.imageTakes)) throw new Error("Runtime manifest: audio.images.takes inválido para bti-audio-v1.");
     if (audio?.images?.pathPattern !== AUDIO_CONTRACT_V1.imagePattern) throw new Error("Runtime manifest: audio.images.pathPattern inválido para bti-audio-v1.");
@@ -45,6 +64,14 @@
     const selectableLineCount = Object.values(manifest.pages).reduce((total, page) => total + page.lineCount, 0);
     if (selectableLineCount < 2) throw new Error("Runtime manifest: el libro debe contener al menos dos renglones seleccionables.");
     return manifest;
+  }
+
+  function resolveReadingPartCount(manifest, pageNumber, lineNumber) {
+    if (!Number.isInteger(pageNumber) || pageNumber <= 0) throw new Error(`Página inválida recibida: ${pageNumber}.`);
+    if (!Number.isInteger(lineNumber) || lineNumber <= 0) throw new Error(`Renglón inválido recibido: ${lineNumber}.`);
+    const page = manifest?.pages?.[pad3(pageNumber)];
+    if (!page || lineNumber > page.lineCount) throw new Error(`Renglón inexistente recibido: ${pageNumber}/${lineNumber}.`);
+    return page.partCountOverrides?.[pad3(lineNumber)] || manifest.audio.reading.defaultPartCount;
   }
 
   async function loadRuntimeManifest(book, fetchJson) {
@@ -94,7 +121,7 @@
 
   function clearCache() { manifestCache.clear(); }
 
-  const api = { AUDIO_CONTRACT_V1, validateRuntimeManifest, loadRuntimeManifest, resolveCyclicReadingPlan, resolveSelection, clearCache, pad3 };
+  const api = { AUDIO_CONTRACT_V1, validateRuntimeManifest, loadRuntimeManifest, resolveReadingPartCount, resolveCyclicReadingPlan, resolveSelection, clearCache, pad3 };
   global.BookTestImposibleV2RuntimeManifest = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);

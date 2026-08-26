@@ -16,6 +16,26 @@ test('page 009 line 16 usa únicamente sus tres takes normales', () => {
   assert.deepEqual(Object.keys(takes), ['p1', 'p2', 'p3']);
 });
 
+function readingSources(partCount) {
+  const context = audio.resolveReadingContext('future-book', 9, 17, partCount);
+  const takes = audio.getClassicTakeUrls(context);
+  return Array.from(audio.playClassicReadingTwoTakes(context, takes)
+    .filter(item => item.type === 'audio')
+    .map(item => item.src.match(/line-017_p\d\.mp3$/)[0]));
+}
+
+test('queue partCount 1 repite sólo p1 y nunca solicita p2/p3', () => {
+  assert.deepEqual(readingSources(1), ['line-017_p1.mp3', 'line-017_p1.mp3']);
+});
+
+test('queue partCount 2 repite p1+p2 y nunca solicita p3', () => {
+  assert.deepEqual(readingSources(2), ['line-017_p1.mp3', 'line-017_p2.mp3', 'line-017_p1.mp3', 'line-017_p2.mp3']);
+});
+
+test('queue partCount 3 conserva p1+p2+p3 en sus dos repeticiones', () => {
+  assert.deepEqual(readingSources(3), ['line-017_p1.mp3', 'line-017_p2.mp3', 'line-017_p3.mp3', 'line-017_p1.mp3', 'line-017_p2.mp3', 'line-017_p3.mp3']);
+});
+
 test('page 009 line 17 y page 010 line 1 no se remapean', () => {
   const line17 = audio.getClassicTakeUrls(audio.resolveReadingContext('future-book', 9, 17));
   const line1 = audio.getClassicTakeUrls(audio.resolveReadingContext('future-book', 10, 1));
