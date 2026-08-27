@@ -64,8 +64,11 @@ Never invent a remote.
 
 Never replace an existing remote unless the task explicitly authorizes it.
 
-After adding an authorized remote, always fetch and verify the exact
-baseline before modifying files.
+After adding or validating an authorized remote, attempt to fetch the expected baseline before modifying files.
+
+A network, proxy, authentication, tunnel, DNS or GitHub availability failure is not by itself a reason to discard an otherwise valid local checkout. If the task provides an exact baseline SHA and that exact SHA can be verified locally together with repository identity and a clean working tree, local implementation may proceed under the network-resilient delivery policy below.
+
+Do not claim that `origin/develop` was verified when fetch did not succeed.
 
 The canonical Windows path used by the project owner and the ephemeral
 Codex checkout path are separate concerns.
@@ -97,7 +100,7 @@ When a task specifies an exact baseline SHA, that SHA is part of the task contra
 
 ## Mandatory preflight
 
-Before editing files:
+Before editing files, always run the local identity checks:
 
 ```bash
 git rev-parse --show-toplevel
@@ -105,7 +108,12 @@ git remote -v
 git status --short
 git branch --show-current
 git rev-parse HEAD
-git fetch origin
+```
+
+When network access is available, also run:
+
+```bash
+git fetch origin --prune
 git rev-parse origin/develop
 ```
 
@@ -113,20 +121,64 @@ Confirm:
 
 1. Repository is `hcamusso1166/camercodex-sonada-pc-app`.
 2. Working tree is clean.
-3. `origin` identifies the expected GitHub repository.
-4. `origin/develop` matches the baseline required by the task.
+3. `origin`, when configured, identifies the expected GitHub repository.
+4. The checked-out baseline SHA matches the exact baseline required by the task.
+5. When fetch succeeds, `origin/develop` also matches the baseline required by the task.
 
 The filesystem path may differ between local Windows development and remote Codex execution.
 
 Do not reject a valid Codex checkout solely because it is under `/workspace` rather than `C:\CamerDev`.
 
-If an exact baseline SHA is required and does not match:
+If repository identity is wrong, the working tree is unexpectedly dirty, or an exact required baseline SHA does not match:
 
 **STOP without modifying files.**
+
+If fetch, push or GitHub API access fails for network/infrastructure reasons but the exact task baseline is locally verifiable, do not treat that infrastructure failure as a baseline mismatch. Follow the network-resilient delivery policy.
 
 Do not silently select another baseline.
 
 Do not silently rebase.
+
+---
+
+## Network-resilient delivery policy
+
+GitHub availability and repository correctness are separate concerns.
+
+A task must not become useless merely because `fetch`, `push` or Pull Request creation is temporarily unavailable.
+
+When the exact repository identity, clean working tree and exact task baseline SHA are locally verifiable, Codex should continue the authorized local work even if remote network operations fail.
+
+Preferred delivery order:
+
+1. create or use the exact task branch from the approved baseline;
+2. make only authorized changes;
+3. run required validations;
+4. create a local commit when permitted by the task;
+5. attempt push to `origin`;
+6. attempt to open the authorized Draft Pull Request;
+7. if push or PR creation is unavailable, preserve the completed local work and produce a transportable fallback.
+
+The fallback should be, in order of preference:
+
+1. a Git patch representing the completed task, suitable for application with `git apply` or an equivalent documented command;
+2. if a patch cannot be produced, the complete modified files together with their exact repository paths.
+
+When falling back, report:
+
+- repository;
+- exact baseline SHA;
+- exact task branch;
+- local commit SHA, if created;
+- files changed;
+- validations executed and results;
+- exact remote operation that failed and its error;
+- patch filename or complete-file fallback paths;
+- exact commands the project owner can run locally to apply, inspect, commit, push and continue the PR workflow.
+
+Do not reset, discard or overwrite completed authorized work merely because GitHub is unreachable.
+
+Only stop before implementation when repository identity, baseline integrity, branch safety or working-tree integrity cannot be established safely.
 
 ---
 
@@ -160,6 +212,14 @@ Do not perform unrelated:
 If an out-of-scope change appears necessary:
 
 **STOP and report it.**
+
+### Foundational Pull Requests
+
+A foundational Pull Request must introduce one minimal, explicit and verifiable architectural capability or boundary.
+
+Do not use a foundational PR as an opportunity for unrelated cleanup, refactors, UX changes, dependency changes or follow-on functionality.
+
+Any additional change must be strictly necessary to establish or validate the declared foundation. Otherwise defer it to a later PR.
 
 ---
 
@@ -257,6 +317,8 @@ When a task explicitly authorizes Pull Request delivery, Codex may:
 4. commit;
 5. push the task branch to `origin`;
 6. open a Draft Pull Request against `develop`.
+
+If steps 5 or 6 fail solely because remote connectivity or GitHub access is unavailable, follow the network-resilient delivery policy instead of discarding the completed local work.
 
 The Pull Request must remain Draft until explicit authorization to mark it Ready for Review.
 
@@ -363,6 +425,7 @@ At the end of every task report:
 - PR number and URL;
 - Draft/Ready status;
 - Vercel status if available;
+- fallback patch or complete-file artifact, when remote delivery failed;
 - confirmation that no unrelated repository was modified.
 
-If validation could not be performed, state exactly what was not validated and why.
+If validation or remote delivery could not be performed, state exactly what was not validated or delivered and why.
