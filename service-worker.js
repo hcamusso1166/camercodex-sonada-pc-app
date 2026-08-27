@@ -1,4 +1,5 @@
 const CACHE_NAME = 'camer-codex-cache-v15';
+const BTI_OFFLINE_CACHE_PREFIX = 'camer-codex-bti-offline-v1-';
 const MANIFEST_URL = '/cache-files.json';
 //const CARTAS_URL = '/audios/cartas.json';
 
@@ -67,7 +68,7 @@ self.addEventListener('activate', (event) => {
     event.waitUntil((async () => {
     const keyList = await caches.keys();
     await Promise.all(keyList.map((key) => {
-      if (key !== CACHE_NAME) {
+      if (key !== CACHE_NAME && !key.startsWith(BTI_OFFLINE_CACHE_PREFIX)) {
         console.log('[ServiceWorker] Removing old cache:', key);
         return caches.delete(key);
       }
@@ -75,6 +76,25 @@ self.addEventListener('activate', (event) => {
     await self.clients.claim();
   })());
 });
+
+async function matchOfflineBookAsset(url) {
+  if (url.origin !== self.location.origin) {
+    return undefined;
+  }
+
+  const match = /^\/books\/([a-z0-9]+(?:-[a-z0-9]+)*)\//.exec(url.pathname);
+  if (!match) {
+    return undefined;
+  }
+
+  const offlineCacheName = `${BTI_OFFLINE_CACHE_PREFIX}${match[1]}`;
+  if (!(await caches.has(offlineCacheName))) {
+    return undefined;
+  }
+
+  const offlineCache = await caches.open(offlineCacheName);
+  return offlineCache.match(url.pathname);
+}
 
 self.addEventListener('sync', (event) => {
   if (event.tag === 'sync-cache') {
@@ -131,7 +151,11 @@ const { request } = event;
     event.respondWith(
       (async () => {
         const cache = await caches.open(CACHE_NAME);
-        let response = await cache.match(url.pathname);
+        let response = await matchOfflineBookAsset(url);
+
+        if (!response) {
+          response = await cache.match(url.pathname);
+        }
 
         if (!response) {
           const networkResponse = await fetch(url.pathname);
@@ -165,6 +189,10 @@ const { request } = event;
       (async () => {
       const cacheKey = isSameOrigin ? url.pathname : request.url;
       const cache = await caches.open(CACHE_NAME);
+      const offlineResponse = await matchOfflineBookAsset(url);
+      if (offlineResponse) {
+        return offlineResponse;
+      }
       const cachedResponse = await cache.match(cacheKey);
       if (cachedResponse) {
         return cachedResponse;
