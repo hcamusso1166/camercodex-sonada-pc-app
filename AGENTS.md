@@ -215,13 +215,19 @@ Do not implement first and move the commit administratively afterward.
 
 ### No task commits on temporary branches
 
-Task commits must not be created on `work`, `main`, `develop`, an automatically created branch or any branch other than the one specified by the task.
+Task commits must not be created on `work`, `main`, `develop` or another temporary execution branch.
 
-The delivery commit must belong to the mandatory task branch.
+When the task specifies an exact branch, that exact branch is mandatory.
+
+When the task does not specify a branch, create a dedicated task branch from the approved baseline using the repository convention `codex/<task-name>` before editing.
+
+For the remainder of this section, `task branch` means the exact branch specified by the task, or the dedicated branch derived using `codex/<task-name>` when no exact branch was specified.
+
+The delivery commit must belong to the task branch.
 
 ### Exact pushed branch
 
-When a task authorizes push or Pull Request delivery, the branch pushed to `origin` must be exactly the specified task branch. Never use a temporary branch as the delivery source.
+When a task authorizes push or Pull Request delivery, the branch pushed to `origin` must be exactly the task branch. Never use a temporary branch as the delivery source.
 
 ### Exact Pull Request head and base
 
