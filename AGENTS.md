@@ -194,6 +194,90 @@ When a task specifies a branch name, that branch name becomes part of the task c
 
 ---
 
+## Mandatory delivery invariants
+
+### Initial execution branch is not task identity
+
+A remote environment may initially be on `work`, a detached HEAD or another temporary branch. This is not by itself a preflight failure when repository identity is correct, the working tree is clean and the exact baseline SHA is verifiable.
+
+The initial temporary branch never substitutes for the task branch.
+
+### Exact task branch before edits
+
+When a task provides a mandatory branch, Codex must:
+
+1. verify the baseline;
+2. create or switch to the exact task branch;
+3. verify that the exact task branch is active;
+4. only then edit files.
+
+Do not implement first and move the commit administratively afterward.
+
+### No task commits on temporary branches
+
+Task commits must not be created on `work`, `main`, `develop`, an automatically created branch or any branch other than the one specified by the task.
+
+The delivery commit must belong to the mandatory task branch.
+
+### Exact pushed branch
+
+When a task authorizes push or Pull Request delivery, the branch pushed to `origin` must be exactly the specified task branch. Never use a temporary branch as the delivery source.
+
+### Exact Pull Request head and base
+
+Before considering a Pull Request delivered, verify for the normal repository flow, unless the task explicitly instructs otherwise:
+
+```text
+head = exact task branch
+base = develop
+```
+
+A Pull Request created from `work` or another branch is not valid delivery even if it contains exactly the same commit.
+
+### Draft is mandatory initial state
+
+When a task authorizes creating a Pull Request and does not explicitly authorize Ready for Review, create the Pull Request as:
+
+```text
+Draft
+```
+
+Creating a Pull Request and later changing it to Ready for Review require separate authorizations. Never interpret “create PR”, “open PR”, “deliver PR”, successful tests or successful validation as authorization to mark a Pull Request Ready for Review.
+
+### Delivery verification before completion report
+
+Before declaring success, explicitly run at least:
+
+```bash
+git branch --show-current
+git rev-parse HEAD
+git status --short
+```
+
+When GitHub is accessible, also verify that the Pull Request has the exact head branch, exact base branch and correct Draft state.
+
+The completion report must state observed values, not expected or assumed values.
+
+### Wrong branch or Pull Request is incomplete delivery
+
+If Codex detects before completion that it accidentally created a commit on the wrong branch, pushed the wrong branch, created a Pull Request with the wrong head or base, or created a non-Draft Pull Request without authorization, it must not report the task as correctly delivered.
+
+Correct the delivery during the same execution when this can be done safely, without modifying the implementation or taking reserved actions such as merge or Ready for Review. The user should not need to request a separate administrative correction for invariants already required by the original task.
+
+### Implementation and delivery correctness are separate
+
+A correct implementation does not imply a correct delivery. A task is complete only when both are satisfied:
+
+```text
+implementation invariants
++
+delivery invariants
+```
+
+A correct commit contained in the wrong branch or Pull Request remains an incomplete delivery.
+
+---
+
 ## Scope discipline
 
 Make only the changes required by the task.
