@@ -35,6 +35,18 @@ test('incluye manifest y audios metadata derivados bajo book.root', () => {
   assert.ok(urls.includes(`${root}/audios/_meta/author.mp3`));
 });
 
+test('ordena páginas numéricamente sin depender del orden de inserción', () => {
+  const normal = buildPlan();
+  const reorderedManifest = structuredClone(manifest);
+  reorderedManifest.pages = Object.fromEntries(Object.entries(reorderedManifest.pages).reverse());
+  const reordered = offlinePlan.buildBookOfflinePlan(book, reorderedManifest);
+  assert.deepEqual(reordered.urls, normal.urls);
+  assert.ok(
+    normal.urls.indexOf(`/books/${book.bookId}/audios/page-009/line-001_p1.mp3`)
+      < normal.urls.indexOf(`/books/${book.bookId}/audios/page-100/line-001_p1.mp3`)
+  );
+});
+
 test('respeta los partCount físicos de lectura sin inventar takes', () => {
   const { urls } = buildPlan();
   const root = `/books/${book.bookId}/audios`;
@@ -69,6 +81,21 @@ test('falla explícitamente ante libro, raíz o manifest inconsistentes', () => 
   const mismatched = structuredClone(manifest);
   mismatched.bookId = 'otro-libro';
   assert.throws(() => offlinePlan.buildBookOfflinePlan(book, mismatched), /bookId inválido/);
+});
+
+test('rechaza rutas que escapan o alteran la URL canónica del libro', () => {
+  for (const runtimeManifest of ['%2e%2e/runtime-manifest.json', '%2E%2E/runtime-manifest.json', 'runtime?.json', 'runtime#.json']) {
+    assert.throws(
+      () => offlinePlan.buildBookOfflinePlan({ ...book, runtimeManifest }, manifest),
+      /runtimeManifest inválido|ruta de asset inválida/
+    );
+  }
+
+  for (const imageId of ['%2e%2e', '%2E%2E', 'image?outside', 'image#outside']) {
+    const invalidManifest = structuredClone(manifest);
+    invalidManifest.images[0].imageId = imageId;
+    assert.throws(() => offlinePlan.buildBookOfflinePlan(book, invalidManifest), /ruta de asset inválida/);
+  }
 });
 
 test('construir el plan es puro y no requiere red, cache ni storage', () => {

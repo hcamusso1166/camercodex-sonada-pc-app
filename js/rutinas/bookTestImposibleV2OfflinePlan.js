@@ -33,10 +33,23 @@
     const seen = new Set();
     const add = relativePath => {
       if (typeof relativePath !== "string" || !relativePath || relativePath.startsWith("/")
-        || relativePath.includes("\\") || relativePath.split("/").includes("..")) {
+        || relativePath.includes("\\") || relativePath.includes("?") || relativePath.includes("#")) {
         throw new Error("Offline plan: ruta de asset inválida.");
       }
       const url = `${root}/${relativePath}`;
+      let decodedPath;
+      try {
+        decodedPath = decodeURIComponent(relativePath);
+      } catch (_) {
+        throw new Error("Offline plan: ruta de asset inválida.");
+      }
+      const parsed = new URL(url, "https://offline.invalid");
+      if (decodedPath.replace(/\\/g, "/").split("/").includes("..")
+        || /%(?:2e|2f|3f|23|5c)/i.test(relativePath)
+        || parsed.origin !== "https://offline.invalid" || parsed.pathname !== url
+        || parsed.search || parsed.hash || !parsed.pathname.startsWith(`${root}/`)) {
+        throw new Error("Offline plan: ruta de asset inválida.");
+      }
       if (!seen.has(url)) {
         seen.add(url);
         urls.push(url);
@@ -47,7 +60,9 @@
     add(manifest.audio.meta.title);
     add(manifest.audio.meta.author);
 
-    for (const [pageKey, page] of Object.entries(manifest.pages)) {
+    const pages = Object.entries(manifest.pages)
+      .sort(([pageKeyA], [pageKeyB]) => Number(pageKeyA) - Number(pageKeyB));
+    for (const [pageKey, page] of pages) {
       for (let lineNumber = 1; lineNumber <= page.lineCount; lineNumber += 1) {
         const partCount = runtime.resolveReadingPartCount(manifest, Number(pageKey), lineNumber);
         for (const take of manifest.audio.reading.takes.slice(0, partCount)) {
