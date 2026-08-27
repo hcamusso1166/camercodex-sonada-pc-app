@@ -19,7 +19,8 @@ function loadRoutine({ sendShowSketchToQ5 } = {}) {
   const window = {
     sendShowSketchToQ5: sendShowSketchToQ5 || (async () => {}),
     BookTestImposibleV2ImageEncore: {
-      resolveIndexedBookImage() { throw new Error('unexpected resolver call'); },
+      resolveManifestBookImage() { throw new Error('unexpected resolver call'); },
+      buildImageAudioPath() { return 'unused.mp3'; },
       buildImageAudioQueue() { return []; },
     },
   };
@@ -46,7 +47,7 @@ function loadRoutine({ sendShowSketchToQ5 } = {}) {
 }
 
 function selection() {
-  return { book: { bookId: 'narnia-el-sobrino-del-mago' }, pageNumber: 11 };
+  return { book: { bookId: 'narnia-el-sobrino-del-mago' }, pageNumber: 11, runtimeManifest: { images: [] } };
 }
 
 function imageResult(overrides = {}) {
@@ -130,4 +131,24 @@ test('SHOW_SKETCH failure is logged without retry and Image Encore completes', a
   assert.equal(state.phase, 'ROUTINE_FINISHED');
   assert.equal(state.logs.some(line => line.includes('[SHOW_SKETCH]') && line.includes('Q5 disconnected')), true);
   assert.equal(state.logs.some(line => line.includes('[IMAGE-ENCORE] complete')), true);
+});
+
+test('reading target UX avanza ready/ready, read/ready, read/read', () => {
+  const dev = loadRoutine();
+  const plan = { requested: { pageNumber: 9, lineNumber: 17 }, targets: [{ pageNumber: 9, lineNumber: 17 }, { pageNumber: 10, lineNumber: 1 }] };
+  const statuses = progress => dev.buildReadingStatusItems(plan, progress).map(item => item.completed ? 'read' : 'ready');
+  assert.deepEqual(statuses([false, false]), ['ready', 'ready']);
+  assert.deepEqual(statuses([true, false]), ['read', 'ready']);
+  assert.deepEqual(statuses([true, true]), ['read', 'read']);
+  const crossPage = dev.buildReadingStatusItems(plan, [false, true]);
+  assert.deepEqual(crossPage.map(({ pageNumber, lineNumber }) => [pageNumber, lineNumber]), [[9, 17], [10, 1]]);
+  assert.deepEqual(crossPage.map(dev.formatReadingStatusItem), [
+    'Elegida (P9 / L17): Lista para leer',
+    'Siguiente (P10 / L1): Línea leída',
+  ]);
+  const samePage = dev.buildReadingStatusItems({ targets: [{ pageNumber: 9, lineNumber: 16 }, { pageNumber: 9, lineNumber: 17 }] });
+  assert.deepEqual(samePage.map(dev.formatReadingStatusItem), [
+    'Elegida (P9 / L16): Lista para leer',
+    'Siguiente (P9 / L17): Lista para leer',
+  ]);
 });

@@ -1,10 +1,4 @@
 (function setupBookTestImposibleV2ShowAudio(global) {
-  const BTI_V2_T1_AFTER_SELECTED_LINE_MS = 10000;
-  const BTI_V2_T2_BETWEEN_FOLLOWUP_LINES_MS = 5000;
-  const SHOW_DEV_FOLLOWUP_COUNT = 3;
-
-    /*TODO(audio-canonical): los futuros takes (title/author/line-XXX_p1..p3) deben generarse
-      desde el SAY canónico de página y validarse por lineHash para alinear texto + audio.*/
   class BookTestImposibleV2ShowAudio {
     constructor(options = {}) {
       this.onLog = options.onLog || (() => {});
@@ -31,42 +25,16 @@
       };
     }
 
-    resolveReadingContext(bookId, pageNumber, selectedLineNumber) {
-      const ctx = {
+    resolveReadingContext(bookId, pageNumber, selectedLineNumber, partCount = 3) {
+      return {
         bookId,
         pageNumber,
         selectedLineNumber,
         playbackLineNumber: selectedLineNumber,
         tpStartLineNumber: selectedLineNumber,
         classicMode: "normal",
-        lineAnnouncementMode: "single",
-        lineAnnouncementNumbers: [selectedLineNumber],
+        partCount,
       };
-
-      const isSpecialBook = bookId === "narnia-el-sobrino-del-mago";
-      const isSpecialPage9 = isSpecialBook && pageNumber === 9;
-
-      if (isSpecialPage9 && selectedLineNumber === 16) {
-        this.log("INFO", "[AUDIO] Caso especial contenido: Page 009 line 016 extendida con continuidad en 017.");
-        ctx.playbackLineNumber = 16;
-        ctx.tpStartLineNumber = 16;
-        ctx.classicMode = "extend-next-line";
-        ctx.lineAnnouncementMode = "single";
-        ctx.lineAnnouncementNumbers = [16];
-        return ctx;
-      }
-
-      if (isSpecialPage9 && selectedLineNumber === 17) {
-        this.log("INFO", "[AUDIO] Caso especial contenido: Page 009 line 017 remapeada a bloque 016+continuidad.");
-        ctx.playbackLineNumber = 16;
-        ctx.tpStartLineNumber = 16;
-        ctx.classicMode = "extend-next-line";
-        ctx.lineAnnouncementMode = "pair";
-        ctx.lineAnnouncementNumbers = [17, 16];
-        return ctx;
-      }
-
-      return ctx;
     }
 
     enableFromUserGesture() {
@@ -252,15 +220,6 @@
       const lineSlug = this.pad3(context.playbackLineNumber);
       const base = `../books/${context.bookId}/audios/page-${pageSlug}`;
 
-      if (context.classicMode === "extend-next-line") {
-        this.log("INFO", "[AUDIO] Page 009 line 016 -> clásico extendido (p1+p2+p3+p4)");
-        return {
-          p1: `${base}/line-016_p1.mp3`,
-          p2: `${base}/line-016_p2.mp3`,
-          p3: `${base}/line-016_p3.mp3`,
-          p4: `${base}/line-017_p1.mp3`,
-        };
-      }
 
       return {
         p1: `${base}/line-${lineSlug}_p1.mp3`,
@@ -269,13 +228,13 @@
       };
     }
 
-    async playClassicLineAudio(bookId, page, line) {
+    async playClassicLineAudio(bookId, page, line, partCount = 3) {
       if (!Number.isInteger(page) || !Number.isInteger(line) || !bookId) {
         this.log("ERROR", `[AUDIO][ERROR] Parámetros inválidos para clásico (bookId=${bookId}, page=${page}, line=${line}).`);
         return;
       }
 
-      const context = this.resolveReadingContext(bookId, page, line);
+      const context = this.resolveReadingContext(bookId, page, line, partCount);
       const queue = this.buildInitialShowQueue(context);
       this.resetClassicPlaybackState();
       this.setQueue(queue, { label: `classic:${bookId}:page-${this.pad3(page)}:line-${this.pad3(context.playbackLineNumber)}` });
@@ -285,9 +244,6 @@
         "INFO",
         `[AUDIO] Preparando show-time general page=${this.pad3(page)} selectedLine=${this.pad3(line)} playbackLine=${this.pad3(context.playbackLineNumber)} mode=${context.classicMode}`
       );
-      if (context.lineAnnouncementMode === "pair") {
-        this.log("INFO", "[AUDIO] Post-show anunciará línea especial compuesta: 17 y 16.");
-      }
       try {
         await this.playQueue();
         if (this.status === "completed") {
@@ -299,71 +255,6 @@
       }
     }
 
-    async playShowDevSequence(params = {}) {
-      const bookId = params.bookId;
-      const page = Number(params.page);
-      const line = Number(params.line);
-      const pageLineCount = Number(params.pageLineCount);
-
-      if (!bookId || !Number.isInteger(page) || !Number.isInteger(line) || line <= 0) {
-        this.log("ERROR", `[AUDIO][ERROR] Parámetros inválidos para flujo show DEV (bookId=${bookId}, page=${params.page}, line=${params.line}).`);
-        return;
-      }
-
-      if (!Number.isInteger(pageLineCount) || pageLineCount <= 0) {
-        this.log("ERROR", `[AUDIO][ERROR] pageLineCount inválido para flujo show DEV (pageLineCount=${params.pageLineCount}).`);
-        return;
-      }
-
-      if (line > pageLineCount) {
-        this.log("ERROR", `[AUDIO][ERROR] Línea base fuera de rango para flujo show DEV: line=${line}, pageLineCount=${pageLineCount}.`);
-        return;
-      }
-
-      this.log("INFO", "[AUDIO] Iniciando flujo show DEV encadenado");
-      this.log("INFO", `[AUDIO] Línea base -> page=${this.pad3(page)} line=${this.pad3(line)}`);
-
-      const initialContext = this.resolveReadingContext(bookId, page, line);
-      const queue = [
-        ...this.buildInitialShowQueue(initialContext),
-      ];
-      this.log("INFO", "[AUDIO] Post-show inicial completo");
-
-      for (let offset = 1; offset <= SHOW_DEV_FOLLOWUP_COUNT; offset += 1) {
-        const followUpQueue = this.buildFollowUpClassicQueue({
-          bookId,
-          page,
-          baseLine: line,
-          offset,
-          pageLineCount,
-        });
-
-        if (!followUpQueue) {
-          break;
-        }
-
-        const waitMs = offset === 1 ? BTI_V2_T1_AFTER_SELECTED_LINE_MS : BTI_V2_T2_BETWEEN_FOLLOWUP_LINES_MS;
-        const waitLabel = offset === 1
-          ? `[AUDIO] Espera T1 = ${BTI_V2_T1_AFTER_SELECTED_LINE_MS} ms`
-          : `[AUDIO] Espera T2 = ${BTI_V2_T2_BETWEEN_FOLLOWUP_LINES_MS} ms`;
-        this.log("INFO", waitLabel);
-        queue.push({ type: "pause", ms: waitMs, label: waitLabel });
-        queue.push(...followUpQueue);
-      }
-
-      this.resetClassicPlaybackState();
-      this.setQueue(queue, { label: `show-dev:${bookId}:page-${this.pad3(page)}:line-${this.pad3(line)}` });
-
-      try {
-        await this.playQueue();
-        if (this.status === "completed") {
-          this.log("INFO", "[AUDIO] Fin flujo show DEV encadenado");
-        }
-      } catch (error) {
-        this.log("ERROR", `[AUDIO][ERROR] ${error.message}`);
-        this.stop("Flujo show DEV abortado por error.");
-      }
-    }
 
     buildInitialShowQueue(context) {
       const takes = this.getClassicTakeUrls(context);
@@ -373,19 +264,6 @@
       ];
     }
 
-    buildFollowUpClassicQueue({ bookId, page, baseLine, offset, pageLineCount }) {
-      const targetLine = Number(baseLine) + Number(offset);
-      if (!Number.isInteger(targetLine) || !Number.isInteger(pageLineCount) || targetLine > pageLineCount) {
-        this.log("INFO", `[AUDIO] Follow-up +${offset} omitido por fuera de rango`);
-        this.log("INFO", `[AUDIO] Follow-up +${offset} omitido: la página ${this.pad3(page)} no tiene línea ${targetLine}.`);
-        return null;
-      }
-
-      this.log("INFO", `[AUDIO] Follow-up +${offset} -> line=${this.pad3(targetLine)}`);
-      const context = this.resolveReadingContext(bookId, page, targetLine);
-      const takes = this.getClassicTakeUrls(context);
-      return this.playClassicReadingThreeTakes(context, takes);
-    }
 
     resetClassicPlaybackState() {
       this.playToken += 1;
@@ -410,70 +288,37 @@
       }
     }
 
-    buildClassicQueueFromTakes(takes) {
+    buildClassicQueueFromTakes(takes, partCount = 3) {
       const pacing = this.classicPacing;
-      const hasP4 = Boolean(takes.p4);
+      const buildTake = (takeNumber, pauseMs, finalPauseMs = pauseMs) => this.buildReadingTake(takes, partCount, takeNumber, pauseMs, finalPauseMs);
       return [
-        { type: "audio", src: takes.p1, label: "Take 1 / p1" },
-        { type: "pause", ms: pacing.PAUSE_SHORT_MS, label: "pause:t1:p1-p2" },
-        { type: "audio", src: takes.p2, label: "Take 1 / p2" },
-        { type: "pause", ms: pacing.PAUSE_SHORT_MS, label: "pause:t1:p2-p3" },
-        { type: "audio", src: takes.p3, label: "Take 1 / p3" },
-        ...(hasP4
-          ? [
-            { type: "pause", ms: pacing.PAUSE_SHORT_MS, label: "pause:t1:p3-p4" },
-            { type: "audio", src: takes.p4, label: "Take 1 / p4" },
-          ]
-          : []),
+        ...buildTake(1, pacing.PAUSE_SHORT_MS),
         { type: "pause", ms: pacing.BETWEEN_TAKE_1_2_MS, label: "pause:t1-t2" },
-        { type: "audio", src: takes.p1, label: "Take 2 / p1" },
-        { type: "pause", ms: pacing.PAUSE_MEDIUM_MS, label: "pause:t2:p1-p2" },
-        { type: "audio", src: takes.p2, label: "Take 2 / p2" },
-        { type: "pause", ms: pacing.PAUSE_MEDIUM_MS, label: "pause:t2:p2-p3" },
-        { type: "audio", src: takes.p3, label: "Take 2 / p3" },
-        ...(hasP4
-          ? [
-            { type: "pause", ms: pacing.PAUSE_MEDIUM_MS, label: "pause:t2:p3-p4" },
-            { type: "audio", src: takes.p4, label: "Take 2 / p4" },
-          ]
-          : []),
+        ...buildTake(2, pacing.PAUSE_MEDIUM_MS),
         { type: "pause", ms: pacing.BETWEEN_TAKE_2_3_MS, label: "pause:t2-t3" },
-        { type: "audio", src: takes.p1, label: "Take 3 / p1" },
-        { type: "pause", ms: pacing.PAUSE_MEDIUM_MS, label: "pause:t3:p1-p2" },
-        { type: "audio", src: takes.p2, label: "Take 3 / p2" },
-        { type: "pause", ms: pacing.PAUSE_LONG_MS, label: "pause:t3:p2-p3" },
-        { type: "audio", src: takes.p3, label: "Take 3 / p3" },
-        ...(hasP4
-          ? [
-            { type: "audio", src: takes.p4, label: "Take 3 / p4" },
-          ]
-          : []),
+        ...buildTake(3, pacing.PAUSE_MEDIUM_MS, pacing.PAUSE_LONG_MS),
       ];
     }
 
     playClassicReadingThreeTakes(context, takes) {
-      void context;
-      return this.buildClassicQueueFromTakes(takes);
+      return this.buildClassicQueueFromTakes(takes, context.partCount);
+    }
+
+    buildReadingTake(takes, partCount, takeNumber, pauseMs, finalPauseMs = pauseMs) {
+      if (![1, 2, 3].includes(partCount)) throw new Error(`partCount inválido para reading audio: ${partCount}.`);
+      const queue = [];
+      for (let part = 1; part <= partCount; part += 1) {
+        if (part > 1) {
+          queue.push({ type: "pause", ms: part === 3 ? finalPauseMs : pauseMs, label: `pause:t${takeNumber}:p${part - 1}-p${part}` });
+        }
+        queue.push({ type: "audio", src: takes[`p${part}`], label: `Take ${takeNumber} / p${part}` });
+      }
+      return queue;
     }
 
     playClassicReadingTwoTakes(context, takes) {
-      void context;
       const pacing = this.classicPacing;
-      const hasP4 = Boolean(takes.p4);
-      const buildTake = (takeNumber, pauseMs) => [
-        { type: "audio", src: takes.p1, label: `Take ${takeNumber} / p1` },
-        { type: "pause", ms: pauseMs, label: `pause:t${takeNumber}:p1-p2` },
-        { type: "audio", src: takes.p2, label: `Take ${takeNumber} / p2` },
-        { type: "pause", ms: pauseMs, label: `pause:t${takeNumber}:p2-p3` },
-        { type: "audio", src: takes.p3, label: `Take ${takeNumber} / p3` },
-        ...(hasP4
-          ? [
-            { type: "pause", ms: pauseMs, label: `pause:t${takeNumber}:p3-p4` },
-            { type: "audio", src: takes.p4, label: `Take ${takeNumber} / p4` },
-          ]
-          : []),
-      ];
-
+      const buildTake = (takeNumber, pauseMs) => this.buildReadingTake(takes, context.partCount, takeNumber, pauseMs);
       return [
         ...buildTake(1, pacing.PAUSE_SHORT_MS),
         { type: "pause", ms: pacing.BETWEEN_TAKE_1_2_MS, label: "pause:t1-t2" },
@@ -567,31 +412,10 @@
     }
 
     buildLineAnnouncement(context) {
-      if (context.lineAnnouncementMode === "single") {
-        const [lineNumber] = context.lineAnnouncementNumbers;
-        return {
-          sources: this.buildAnnouncementNumberSources([lineNumber]),
-          log: this.describeAnnouncementNumberSequence([lineNumber]),
-        };
-      }
-
-      if (context.lineAnnouncementMode === "pair") {
-        const [firstLine, secondLine] = context.lineAnnouncementNumbers;
-        this.log("INFO", "[AUDIO] Anuncio final especial: Renglón 17 y 16");
+      const lineNumber = Number(context.playbackLineNumber) || 0;
       return {
-        sources: [
-          ...this.buildAnnouncementNumberSources([firstLine]),
-          "../audios/poker/y.mp3",
-          ...this.buildAnnouncementNumberSources([secondLine]),
-        ],
-        log: `${firstLine} + y + ${secondLine}`,
-      };
-    }
-
-    const fallbackLine = Number(context.playbackLineNumber) || 0;
-      return {
-        sources: this.buildAnnouncementNumberSources([fallbackLine]),
-        log: this.describeAnnouncementNumberSequence([fallbackLine]),
+        sources: this.buildAnnouncementNumberSources([lineNumber]),
+        log: this.describeAnnouncementNumberSequence([lineNumber]),
       };
     }
     
