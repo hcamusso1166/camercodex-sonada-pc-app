@@ -14,10 +14,10 @@ const BTI_V2_Q5_ANTENNA_IDS = Object.freeze([2, 3, 4, 5, 6]);
 const BTI_V2_PHASES = Object.freeze({
   DETECCION: "DETECCION",
   RESOLUCION: "RESOLUCION",
-  WAITING_GATE_FOR_SELECTED_LINE: "WAITING_GATE_FOR_SELECTED_LINE",
-  PLAYING_SELECTED_LINE: "PLAYING_SELECTED_LINE",
-  WAITING_GATE_FOR_LINE_PLUS_1: "WAITING_GATE_FOR_LINE_PLUS_1",
-  PLAYING_LINE_PLUS_1: "PLAYING_LINE_PLUS_1",
+  WAITING_GATE_FOR_READING_TARGET_1: "WAITING_GATE_FOR_READING_TARGET_1",
+  PLAYING_READING_TARGET_1: "PLAYING_READING_TARGET_1",
+  WAITING_GATE_FOR_READING_TARGET_2: "WAITING_GATE_FOR_READING_TARGET_2",
+  PLAYING_READING_TARGET_2: "PLAYING_READING_TARGET_2",
   WAITING_IMAGE_ENCORE_TRIGGER: "WAITING_IMAGE_ENCORE_TRIGGER",
   IMAGE_ENCORE_RESOLVING: "IMAGE_ENCORE_RESOLVING",
   IMAGE_ENCORE_PLAYING: "IMAGE_ENCORE_PLAYING",
@@ -33,19 +33,6 @@ const BTI_V2_PHASES = Object.freeze({
   ERROR: "ERROR",
 });
 
-/**
- * @typedef {Object} PageImage
- * @property {string} imageId
- * @property {string} description
- *
- * @typedef {Object} PageData
- * @property {number} page
- * @property {string} bookId
- * @property {number} lineCount
- * @property {string[]} sayLines
- * @property {PageImage[]} images
- */
-
 const routineState = {
   books: [],
   currentBook: null,
@@ -57,6 +44,7 @@ const routineState = {
   selectionLocked: false,
   lockedSelection: null,
   currentGateStep: 0,
+  readingProgress: [false, false],
   imageEncore: null,
   preparedImageEncore: null,
   preparedImageAudioPath: null,
@@ -87,9 +75,6 @@ const ui = {
   resolvedPage: null,
   resolvedLine: null,
   resolvedContextList: null,
-  resolvedPageHash: null,
-  resolvedLineHash: null,
-  resolvedWindowHash: null,
   routineLog: null,
   multiAntennaSimCard: null,
   multiAntennaSlotInputs: [],
@@ -137,9 +122,6 @@ function bindUiElements() {
   ui.resolvedPage = document.getElementById("resolvedPage");
   ui.resolvedLine = document.getElementById("resolvedLine");
   ui.resolvedContextList = document.getElementById("resolvedContextList");
-  ui.resolvedPageHash = document.getElementById("resolvedPageHash");
-  ui.resolvedLineHash = document.getElementById("resolvedLineHash");
-  ui.resolvedWindowHash = document.getElementById("resolvedWindowHash");
 
   ui.routineLog = document.getElementById("routineLog");
   
@@ -533,6 +515,7 @@ async function handleDetectionFinishGate() {
     routineState.selectionLocked = true;
     routineState.phase = BTI_V2_PHASES.RESOLUCION;
     routineState.currentGateStep = 0;
+    routineState.readingProgress = [false, false];
     routineState.lockedSelection = {
       book: routineState.currentBook,
       page,
@@ -550,8 +533,8 @@ async function handleDetectionFinishGate() {
     renderDeviceStatuses();
     logInfo("[BTI_V2] Playing resolution audio: book/page/line once", "AUDIO");
     await playResolutionAudio(selection);
-    routineState.phase = BTI_V2_PHASES.WAITING_GATE_FOR_SELECTED_LINE;
-    logInfo("[BTI_V2] Waiting antenna 8 for selected line", "BLE");
+    routineState.phase = BTI_V2_PHASES.WAITING_GATE_FOR_READING_TARGET_1;
+    logInfo("[BTI_V2] Waiting antenna 8 for reading target 1", "BLE");
     updatePayloadStatus("Selección fijada. Esperando Antena 8 para reproducir el renglón elegido.", false);
     renderDeviceStatuses();
   } catch (error) {
@@ -571,22 +554,28 @@ if (routineState.phase === BTI_V2_PHASES.COMPLETE || routineState.phase === BTI_
     updatePayloadStatus("No hay selección fijada para avanzar.", true);
     return;
   }
-  if (routineState.phase === BTI_V2_PHASES.WAITING_GATE_FOR_SELECTED_LINE) {
-    routineState.phase = BTI_V2_PHASES.PLAYING_SELECTED_LINE;
-    logInfo("[BTI_V2] Playing selected line twice", "AUDIO");
+  if (routineState.phase === BTI_V2_PHASES.WAITING_GATE_FOR_READING_TARGET_1) {
+    routineState.phase = BTI_V2_PHASES.PLAYING_READING_TARGET_1;
+    logInfo("[BTI_V2] Playing reading target 1 twice", "AUDIO");
     renderDeviceStatuses();
-    await playLineAudio(selection, 0);
-    routineState.phase = BTI_V2_PHASES.WAITING_GATE_FOR_LINE_PLUS_1;
-    logInfo("[BTI_V2] Waiting antenna 8 for line +1", "BLE");
-    updatePayloadStatus("Esperando Antena 8 para reproducir renglón +1.", false);
+    if (await playReadingTarget(selection, 0)) {
+      routineState.readingProgress[0] = true;
+      renderSelection(selection);
+    }
+    routineState.phase = BTI_V2_PHASES.WAITING_GATE_FOR_READING_TARGET_2;
+    logInfo("[BTI_V2] Waiting antenna 8 for reading target 2", "BLE");
+    updatePayloadStatus("Esperando Antena 8 para reproducir el segundo renglón.", false);
     renderDeviceStatuses();
     return;
   }
-  if (routineState.phase === BTI_V2_PHASES.WAITING_GATE_FOR_LINE_PLUS_1) {
-    routineState.phase = BTI_V2_PHASES.PLAYING_LINE_PLUS_1;
-    logInfo("[BTI_V2] Playing line +1 twice", "AUDIO");
+  if (routineState.phase === BTI_V2_PHASES.WAITING_GATE_FOR_READING_TARGET_2) {
+    routineState.phase = BTI_V2_PHASES.PLAYING_READING_TARGET_2;
+    logInfo("[BTI_V2] Playing reading target 2 twice", "AUDIO");
     renderDeviceStatuses();
-    await playLineAudio(selection, 1);
+    if (await playReadingTarget(selection, 1)) {
+      routineState.readingProgress[1] = true;
+      renderSelection(selection);
+    }
     routineState.phase = BTI_V2_PHASES.WAITING_IMAGE_ENCORE_TRIGGER;
     routineState.imageEncoreTriggerConsumed = false;
     logInfo("[IMAGE-ENCORE] Waiting antenna 8 for image encore", "BLE");
@@ -687,17 +676,26 @@ function clearPreparedImageEncore() {
   const sourcePage = Number(selection?.pageNumber);
   const startedAt = performance.now();
   logInfo(`[IMAGE-ENCORE] preparing book=${bookId} sourcePage=${sourcePage}`, "BTI_V2");
-  const result = window.BookTestImposibleV2ImageEncore.resolveIndexedBookImage({ bookId, sourcePage });
+  const result = window.BookTestImposibleV2ImageEncore.resolveManifestBookImage({
+    bookId,
+    sourcePage,
+    images: selection.runtimeManifest.images,
+  });
   routineState.preparedImageEncore = result;
   if (!result.found) {
     logInfo(`[IMAGE-ENCORE] no image found book=${bookId} sourcePage=${sourcePage}`, "BTI_V2");
     return result;
   }
-  const audioPath = `../books/${result.audio}`;
+  const audioPath = `../books/${window.BookTestImposibleV2ImageEncore.buildImageAudioPath({
+    bookId,
+    page: result.targetPage,
+    imageId: result.imageId,
+    take: "p1",
+  })}`;
   routineState.preparedImageAudioPath = audioPath;
   showAudio?.preload(audioPath);
   logInfo(`[IMAGE-ENCORE] prepared targetPage=${result.targetPage} imageId=${result.imageId} resolveMs=${(performance.now() - startedAt).toFixed(2)}`, "BTI_V2");
-  logInfo(`[IMAGE-ENCORE] audio preload requested path=${result.audio}`, "AUDIO");
+  logInfo(`[IMAGE-ENCORE] audio preload requested path=${audioPath}`, "AUDIO");
   return result;
 }
 
@@ -727,7 +725,6 @@ function renderImageEncore(result) {
       `Página seleccionada: ${result.sourcePage}`,
       `Página de la imagen: ${result.targetPage}`,
       `Instrucción: ${result.navigationText}`,
-      `Imagen: ${result.description}`,
     ]
     : [
       `Página seleccionada: ${result.sourcePage}`,
@@ -741,13 +738,10 @@ function renderImageEncore(result) {
   });
 }
 
-function buildLineQueue(selection, offset = 0) {
-  const line = selection.lineNumber + offset;
-  if (line > selection.sayLines.length) {
-    logInfo(`[BTI_V2] Skipping line +${offset} because it does not exist`, "AUDIO");
-    return [];
-  }
-  const context = showAudio.resolveReadingContext(selection.book.bookId, selection.pageNumber, line);
+function buildReadingTargetQueue(selection, targetIndex) {
+  const target = selection.readingPlan.targets[targetIndex];
+  const partCount = window.BookTestImposibleV2RuntimeManifest.resolveReadingPartCount(selection.runtimeManifest, target.pageNumber, target.lineNumber);
+  const context = showAudio.resolveReadingContext(selection.book.bookId, target.pageNumber, target.lineNumber, partCount);
   const takes = showAudio.getClassicTakeUrls(context);
   return showAudio.playClassicReadingTwoTakes(context, takes);
 }
@@ -770,8 +764,9 @@ async function playResolutionAudio(selection) {
   await playQueueItems(buildResolutionQueue(selection), "No hay audios disponibles para el anuncio libro/página/renglón.");
 }
 
-async function playLineAudio(selection, offset) {
-  await playQueueItems(buildLineQueue(selection, offset), `No hay audios disponibles para el renglón +${offset}.`);
+async function playReadingTarget(selection, targetIndex) {
+  await playQueueItems(buildReadingTargetQueue(selection, targetIndex), `No hay audios disponibles para reading target ${targetIndex + 1}.`);
+  return showAudio.status === "completed";
 }
 
 async function replayLockedSelection() {
@@ -783,8 +778,8 @@ async function replayLockedSelection() {
   logInfo("[BTI_V2] Replay locked selection requested", "AUDIO");
   const queue = [
     ...buildResolutionQueue(selection),
-    ...buildLineQueue(selection, 0),
-    ...buildLineQueue(selection, 1),
+    ...buildReadingTargetQueue(selection, 0),
+    ...buildReadingTargetQueue(selection, 1),
   ];
   await playQueueItems(queue, "No hay cola disponible para Replay.");
     if (showAudio?.status === "completed") {
@@ -840,21 +835,20 @@ async function handleDeviceSelectionEvent(selectionPayload) {
   try {
     const selection = await resolveSelection(routineState.currentBook, selectionPayload.page, selectionPayload.line);
     routineState.currentSelection = selection;
+    routineState.readingProgress = [false, false];
     renderSelection(selection);
     updatePayloadStatus(`Selección resuelta: pág ${selection.pageNumber}, línea ${selection.lineNumber}.`, false);
     logInfo(`Selección resuelta para ${selection.book.bookId}.`, "DATA");
 
-    const requestedLine = Number(selectionPayload.line ?? selection.lineNumber ?? 0);
-    if (!Number.isInteger(requestedLine) || requestedLine <= 0 || requestedLine > MAX_LINE_NUMBER) {
-      logError(`[AUDIO] Línea inválida para show-time: ${requestedLine}. Rango permitido 1..${MAX_LINE_NUMBER}.`, "AUDIO");
-      return;
+    await playQueueItems([
+      ...buildResolutionQueue(selection),
+      ...buildReadingTargetQueue(selection, 0),
+      ...buildReadingTargetQueue(selection, 1),
+    ]);
+    if (showAudio.status === "completed") {
+      routineState.readingProgress = [true, true];
+      renderSelection(selection);
     }
-    await showAudio.playShowDevSequence({
-      bookId: selection.book.bookId,
-      page: selection.pageNumber,
-      line: requestedLine,
-      pageLineCount: selection.sayLines.length,
-    });
   } catch (error) {
     updatePayloadStatus(error.message, true);
     logError(error.message, "DATA");
@@ -954,62 +948,19 @@ async function resolveSelection(book, page, line) {
   if (!Number.isInteger(line) || line <= 0) {
     throw new Error(`Renglón inválido recibido: ${line}.`);
   }
-if (line > MAX_LINE_NUMBER) {
-    throw new Error(`Renglón inválido recibido: ${line}. Máximo soportado ${MAX_LINE_NUMBER}.`);
-  }
   if (line > MAX_LINE_CARD_SUM) {
     logInfo(
-      `Renglón ${line} por encima de suma de cartas (${MAX_LINE_CARD_SUM}); permitido por capacidad extendida hasta ${MAX_LINE_NUMBER}.`,
+      `Renglón ${line} por encima de suma de cartas (${MAX_LINE_CARD_SUM}); se validará contra lineCount.`,
       "DATA"
     );
   }
 
-  const pagePath = buildPagePath(book, page);
-  logInfo(`Resolviendo página desde: ${pagePath}`, "DATA");
-  const pageData = await loadJson(pagePath, `No se pudo cargar la página ${page}`);
-
-  const sayLines = extractSayLines(pageData);
-  const images = extractPageImages(pageData);
-  if (!sayLines.length) {
-    throw new Error(`La página ${page} no contiene líneas SAY utilizables.`);
-  }
-
   const normalizedLine = normalizeShowSelectionLine(page, line);
-  const lineIndex = normalizedLine - 1;
-  if (lineIndex < 0 || lineIndex >= sayLines.length) {
-    throw new Error(`Renglón fuera de rango. La página ${page} tiene ${sayLines.length} líneas reales.`);
-  }
-
-  if (page === 9) {
-    logInfo("Página 009 cargada", "DATA");
-  }
-  logInfo(`SAY lines: ${sayLines.length}`, "DATA");
-
-  const windowLines = resolveSayWindow(sayLines, normalizedLine);
-  const pageHash = buildPageHash(sayLines);
-  const lineHash = buildLineHash(sayLines[lineIndex]);
-  const windowHash = buildWindowHash(windowLines);
-
-  logInfo(`pageHash=${pageHash}`, "HASH");
-  logInfo(`lineHash=${lineHash}`, "HASH");
-  logInfo(`windowHash=${windowHash}`, "HASH");
-  logInfo(`Ventana resuelta con ${windowLines.length} línea(s)`, "VIEW");
-
-  logTpCanonicalAlignment(page, normalizedLine, windowLines, pageHash, windowHash);
-
-  return {
+  const manifest = await window.BookTestImposibleV2RuntimeManifest.loadRuntimeManifest(
     book,
-    pageNumber: page,
-    lineNumber: normalizedLine,
-    selectedLine: sayLines[lineIndex],
-    sayLines,
-    images,
-    windowLines,
-    pageHash,
-    lineHash,
-    windowHash,
-    previewLines: buildPreviewLines(sayLines, lineIndex),
-  };
+    path => loadJson(path, `No se pudo cargar runtime manifest de ${book.bookId}`)
+  );
+  return window.BookTestImposibleV2RuntimeManifest.resolveSelection(manifest, book, page, normalizedLine);
 }
 
 function normalizeShowSelectionLine(page, line) {
@@ -1017,154 +968,8 @@ function normalizeShowSelectionLine(page, line) {
   return line;
 }
 
-function resolveSayWindow(sayLines, selectedLine) {
-  return window.BookTestImposibleV2Canonical?.resolveSayWindow(sayLines, selectedLine)
-    || buildPreviewLines(sayLines, Math.max(0, selectedLine - 1)).map(item => item.text);
-}
-
-function buildPageHash(sayLines) {
-  return window.BookTestImposibleV2Canonical?.buildPageHash(sayLines) || "00000000";
-}
-
-function buildWindowHash(windowLines) {
-  return window.BookTestImposibleV2Canonical?.buildWindowHash(windowLines) || "00000000";
-}
-
-function buildLineHash(line) {
-  return window.BookTestImposibleV2Canonical?.buildLineHash(line) || "00000000";
-}
-
-function logTpCanonicalAlignment(page, selectedLine, appWindowLines, appPageHash, appWindowHash) {
-  if (page !== 9 || selectedLine <= 0) {
-    return;
-  }
-
-  const tpSayLines = window.BookTestImposibleV2Canonical?.getTpCanonicalPage009SayLines?.() || [];
-  const tpWindowLines = resolveSayWindow(tpSayLines, selectedLine);
-  const tpPageHash = buildPageHash(tpSayLines);
-  const tpWindowHash = buildWindowHash(tpWindowLines);
-
-  logInfo("Page 009 canonical SAY loaded", "TP");
-  logInfo(`pageHash=${tpPageHash}`, "TP");
-  logInfo(`windowHash=${tpWindowHash}`, "TP");
-  logInfo(`selectedLine=${selectedLine}`, "TP");
-  logInfo(`windowLines=${tpWindowLines.length}`, "TP");
-
-  if (tpPageHash !== appPageHash || tpWindowHash !== appWindowHash || tpWindowLines.join("\n") !== appWindowLines.join("\n")) {
-    logError("Desalineación detectada entre app y resolución local TP canónica.", "TP");
-  }
-}
-
-function buildPreviewLines(lines, selectedIndex) {
-  const preview = [];
-  for (let offset = 0; offset < 4; offset += 1) {
-    const idx = selectedIndex + offset;
-    if (idx >= lines.length) {
-      break;
-    }
-    preview.push({
-      lineNumber: idx + 1,
-      text: lines[idx],
-      isSelected: offset === 0,
-      offset,
-    });
-  }
-  return preview;
-}
-async function resolveLocalLineTakes(bookId, page, line, assetExistsChecker) {
-  const parts = ["p1", "p2", "p3"];
-  const resolved = [];
-
-  for (const part of parts) {
-    const candidates = buildLineTakeCandidates(bookId, page, line, part);
-    let found = null;
-
-    for (const candidate of candidates) {
-      const ok = await assetExistsChecker(candidate);
-      console.log("CHECK", { part, candidate, ok });
-      if (ok) {
-        found = candidate;
-        break;
-      }
-    }
-
-    if (!found) {
-      return [];
-    }
-
-    resolved.push(found);
-  }
-
-  return resolved;
-}
-
-async function buildShowAudioQueue(selection) {
-  const warnings = [];
-const bookId = selection.book.bookId || selection.book.id;
-
-  const takes = await resolveLocalLineTakes(bookId, selection.pageNumber, selection.lineNumber, assetExists);
-  if (!takes.length) {
-    warnings.push("No se encontraron takes locales para la línea seleccionada.");
-    return { queue: [], warnings };
-  }
-
-    const queue = [
-    { type: "audio", src: takes[0], label: "take:p1" },
-    { type: "pause", ms: 700, label: "pause:p1-p2" },
-    { type: "audio", src: takes[1], label: "take:p2" },
-    { type: "pause", ms: 900, label: "pause:p2-p3" },
-    { type: "audio", src: takes[2], label: "take:p3" },
-  ];
-
-  const titleCandidates = buildMetaAudioCandidates(bookId, "title");
-  const authorCandidates = buildMetaAudioCandidates(bookId, "author");
-  const title = await resolveFirstExisting(titleCandidates, assetExists);
-  const author = await resolveFirstExisting(authorCandidates, assetExists);
-
-  if (title) {
-    queue.push({ type: "pause", ms: 1000, label: "pause:after-p3" });
-    queue.push({ type: "audio", src: title, label: "book:title" });
-  } else {
-    warnings.push(`Asset faltante: ${titleCandidates[0]}`);
-  }
-
-  if (author) {
-    if (title) {
-      queue.push({ type: "pause", ms: 350, label: "pause:title-author" });
-    } else {
-      queue.push({ type: "pause", ms: 1000, label: "pause:after-p3" });
-    }
-    queue.push({ type: "audio", src: author, label: "book:author" });
-  } else {
-    warnings.push(`Asset faltante: ${authorCandidates[0]}`);
-  }
-
-  warnings.push("Audio numérico de página/renglón diferido en fase mínima.");
-
-  return { queue, warnings };
-}
-
 function pad3(value) {
   return String(value).padStart(3, "0");
-}
-
-function pad2(value) {
-  return String(value).padStart(2, "0");
-}
-
-function buildMetaAudioCandidates(bookId, kind) {
-  return [
-    `../books/${bookId}/audios/_meta/${kind}.mp3`,
-  ];
-}
-
-function buildLineTakeCandidates(bookId, page, line, part) {
-  const pageFolder = `../books/${bookId}/audios/page-${pad3(page)}`;
-
-  return [
-    `${pageFolder}/line-${pad3(line)}_${part}.mp3`,
-    `${pageFolder}/line-${pad2(line)}_${part}.mp3`,
-  ];
 }
 
 function buildImageTakePath(bookId, page, imageId, part) {
@@ -1184,31 +989,6 @@ async function resolveFirstExisting(candidates, assetExistsChecker) {
     }
   }
   return null;
-}
-
-async function resolveLocalLineTakes(bookId, page, line, assetExistsChecker) {
-  const parts = ["p1", "p2", "p3"];
-  const resolved = [];
-
-  for (const part of parts) {
-    const candidates = buildLineTakeCandidates(bookId, page, line, part);
-
-    let found = null;
-    for (const candidate of candidates) {
-      if (await assetExistsChecker(candidate)) {
-        found = candidate;
-        break;
-      }
-    }
-
-    if (!found) {
-      return [];
-    }
-
-    resolved.push(found);
-  }
-
-  return resolved;
 }
 
 async function resolveLocalImageTakes(bookId, page, imageId, assetExistsChecker) {
@@ -1314,76 +1094,6 @@ function getBookId(rawBook) {
   return rawBook?.bookId || rawBook?.id || rawBook?.slug || "";
 }
 
-function normalizeRootPath(rootPath) {
-  if (!rootPath || typeof rootPath !== "string") {
-    return "";
-  }
-
-  if (rootPath.startsWith("../") || rootPath.startsWith("./")) {
-    return rootPath;
-  }
-
-  if (rootPath.startsWith("books/")) {
-    return `../${rootPath}`;
-  }
-
-  return `${BOOK_DATA.basePath}/${rootPath.replace(/^\/+/, "")}`;
-}
-
-function buildPagePath(book, page) {
-  const pageSlug = String(page).padStart(3, "0");
-  return `${normalizeRootPath(book.root)}/pages/page-${pageSlug}.json`;
-}
-
-function extractSayLines(pageData) {
-  const candidates = [
-    pageData?.sayLines,
-    pageData?.lines,
-    pageData?.lineas,
-    pageData?.content?.lines,
-    pageData?.data?.lines,
-  ].filter(Boolean);
-
-  const list = candidates.find(Array.isArray);
-  if (!list) {
-    return [];
-  }
-
-  return list
-    .map(item => {
-      if (typeof item === "string") {
-        return item.trim();
-      }
-      if (item && typeof item === "object") {
-        return (item.text || item.content || item.line || "").trim();
-      }
-      return "";
-    })
-    .filter(Boolean);
-}
-
-function extractPageImages(pageData) {
-  if (!Array.isArray(pageData?.images)) {
-    return [];
-  }
-
-  return pageData.images
-    .map(item => {
-      if (!item || typeof item !== "object") {
-        return null;
-      }
-
-      const imageId = typeof item.imageId === "string" ? item.imageId.trim() : "";
-      const description = typeof item.description === "string" ? item.description.trim() : "";
-
-      if (!imageId || !description) {
-        return null;
-      }
-
-      return { imageId, description };
-    })
-    .filter(Boolean);
-}
 
 function resetRoutineState() {
   resetDetectionAudioState();
@@ -1396,6 +1106,7 @@ function resetRoutineState() {
   routineState.selectionLocked = false;
   routineState.lockedSelection = null;
   routineState.currentGateStep = 0;
+  routineState.readingProgress = [false, false];
   routineState.imageEncore = null;
   clearPreparedImageEncore();
   routineState.imageEncoreTriggerConsumed = false;
@@ -1432,6 +1143,7 @@ function resetBtiV2FlowForNewDetection() {
   routineState.selectionLocked = false;
   routineState.lockedSelection = null;
   routineState.currentGateStep = 0;
+  routineState.readingProgress = [false, false];
   routineState.imageEncore = null;
   clearPreparedImageEncore();
   routineState.imageEncoreTriggerConsumed = false;
@@ -1496,10 +1208,10 @@ function renderPhaseStatus() {
   const labels = {
     [BTI_V2_PHASES.DETECCION]: "Detección",
     [BTI_V2_PHASES.RESOLUCION]: "Resolución",
-    [BTI_V2_PHASES.WAITING_GATE_FOR_SELECTED_LINE]: "Esperando avance",
-    [BTI_V2_PHASES.PLAYING_SELECTED_LINE]: "Reproduciendo",
-    [BTI_V2_PHASES.WAITING_GATE_FOR_LINE_PLUS_1]: "Esperando avance",
-    [BTI_V2_PHASES.PLAYING_LINE_PLUS_1]: "Reproduciendo",
+    [BTI_V2_PHASES.WAITING_GATE_FOR_READING_TARGET_1]: "Esperando avance",
+    [BTI_V2_PHASES.PLAYING_READING_TARGET_1]: "Reproduciendo",
+    [BTI_V2_PHASES.WAITING_GATE_FOR_READING_TARGET_2]: "Esperando avance",
+    [BTI_V2_PHASES.PLAYING_READING_TARGET_2]: "Reproduciendo",
     [BTI_V2_PHASES.WAITING_IMAGE_ENCORE_TRIGGER]: "Esperando Encore de imagen",
     [BTI_V2_PHASES.IMAGE_ENCORE_RESOLVING]: "Resolviendo Encore de imagen",
     [BTI_V2_PHASES.IMAGE_ENCORE_PLAYING]: "Encore de imagen",
@@ -1592,9 +1304,6 @@ function clearSelectionView() {
   ui.resolvedPage.textContent = "—";
   ui.resolvedLine.textContent = "—";
   ui.resolvedContextList.innerHTML = "<li>—</li>";
-  if (ui.resolvedPageHash) ui.resolvedPageHash.textContent = "—";
-  if (ui.resolvedLineHash) ui.resolvedLineHash.textContent = "—";
-  if (ui.resolvedWindowHash) ui.resolvedWindowHash.textContent = "—";
 }
 
 function renderSelection(selection) {
@@ -1602,19 +1311,30 @@ function renderSelection(selection) {
   ui.resolvedLine.textContent = String(selection.lineNumber);
   ui.resolvedContextList.innerHTML = "";
 
-  selection.previewLines.forEach(item => {
+  const items = buildReadingStatusItems(selection.readingPlan, routineState.readingProgress);
+
+  items.forEach(item => {
     const li = document.createElement("li");
-    const prefix = item.offset === 0 ? "Elegida" : `Siguiente ${item.offset}`;
-    li.textContent = `${prefix} (L${item.lineNumber}): ${item.text}`;
-    if (item.isSelected) {
+    li.textContent = formatReadingStatusItem(item);
+    if (item.selected) {
       li.style.fontWeight = "700";
     }
     ui.resolvedContextList.appendChild(li);
   });
+}
 
-  if (ui.resolvedPageHash) ui.resolvedPageHash.textContent = selection.pageHash || "—";
-  if (ui.resolvedLineHash) ui.resolvedLineHash.textContent = selection.lineHash || "—";
-  if (ui.resolvedWindowHash) ui.resolvedWindowHash.textContent = selection.windowHash || "—";
+function formatReadingStatusItem(item) {
+  return `${item.label} (P${item.pageNumber} / L${item.lineNumber}): ${item.completed ? "Línea leída" : "Lista para leer"}`;
+}
+
+function buildReadingStatusItems(readingPlan, progress = [false, false]) {
+  return readingPlan.targets.map((target, index) => ({
+    label: index === 0 ? "Elegida" : "Siguiente",
+    lineNumber: target.lineNumber,
+    pageNumber: target.pageNumber,
+    selected: index === 0,
+    completed: progress[index] === true,
+  }));
 }
 
 function updatePayloadStatus(message, isError) {
@@ -1659,17 +1379,11 @@ window.resetBtiV2FlowForNewDetection = resetBtiV2FlowForNewDetection;
 window.setBookTestImposibleV2DeviceState = setBookTestImposibleV2DeviceState;
 
 window.bookTestImposibleV2Dev = {
-  buildPagePath,
-  buildPreviewLines,
+  buildReadingStatusItems,
+  formatReadingStatusItem,
   resolveBookByDeviceCode,
   parseSelectionPayload,
-  resolveSayWindow,
-  buildPageHash,
-  buildWindowHash,
-  buildLineHash,
-  extractPageImages,
   buildImageTakePath,
-  resolveNextBookImage: (...args) => window.BookTestImposibleV2ImageEncore.resolveNextBookImage(...args),
   resolveImageNavigation: (...args) => window.BookTestImposibleV2ImageEncore.resolveImageNavigation(...args),
   buildImageAudioPath: (...args) => window.BookTestImposibleV2ImageEncore.buildImageAudioPath(...args),
   prepareImageEncore,
