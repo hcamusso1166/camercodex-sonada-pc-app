@@ -32,8 +32,8 @@ function createHarness(overrides = {}) {
     return plan;
   };
   const materializer = {
-    async materialize(receivedPlan) {
-      calls.materialize.push(receivedPlan);
+    async materialize(receivedPlan, onProgress) {
+      calls.materialize.push([receivedPlan, onProgress]);
       if (overrides.materializerError) throw overrides.materializerError;
       return overrides.result || materialization;
     },
@@ -48,8 +48,19 @@ test('construye un plan, materializa exactamente ese plan y devuelve el resultad
 
   assert.deepEqual(calls.build, [[book, runtimeManifest]]);
   assert.equal(calls.materialize.length, 1);
-  assert.equal(calls.materialize[0], plan);
+  assert.equal(calls.materialize[0][0], plan);
+  assert.equal(calls.materialize[0][1], undefined);
   assert.deepEqual(result, { ...materialization, profile: 'bti-offline-preparation-v1' });
+});
+
+test('reenvía el callback de progreso al materializer', async () => {
+  const { calls, service } = createHarness();
+  const onProgress = () => {};
+
+  await service.prepare(book, runtimeManifest, onProgress);
+
+  assert.equal(calls.materialize.length, 1);
+  assert.equal(calls.materialize[0][1], onProgress);
 });
 
 test('no reimplementa ni muta el plan generado', async () => {
