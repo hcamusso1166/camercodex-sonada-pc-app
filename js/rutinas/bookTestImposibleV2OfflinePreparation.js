@@ -20,9 +20,9 @@
       throw new Error("Offline preparation: materializer no disponible.");
     }
 
-    async function prepare(book, runtimeManifest) {
+    async function prepare(book, runtimeManifest, onProgress) {
       const plan = buildBookOfflinePlan(book, runtimeManifest);
-      const result = await materializer.materialize(plan);
+      const result = await materializer.materialize(plan, onProgress);
       const expectedCacheName = `camer-codex-bti-offline-v1-${plan.bookId}`;
       const expectedCount = plan.urls.length;
 

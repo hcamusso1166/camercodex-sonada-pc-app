@@ -45,7 +45,7 @@
     const fetchImpl = options.fetchImpl || (typeof global.fetch === "function" && global.fetch.bind(global));
     const cacheStorage = options.cacheStorage || global.caches;
 
-    async function materialize(plan) {
+    async function materialize(plan, onProgress) {
       validatePlan(plan);
       if (typeof fetchImpl !== "function") {
         throw new Error("Offline assets: fetch no disponible.");
@@ -56,10 +56,14 @@
       }
 
       const cacheName = `camer-codex-bti-offline-v1-${plan.bookId}`;
+      const reportProgress = typeof onProgress === "function" ? onProgress : () => {};
+      const totalCount = plan.urls.length;
       try {
         await cacheStorage.delete(cacheName);
         const cache = await cacheStorage.open(cacheName);
 
+        reportProgress({ phase: "downloading", completedCount: 0, totalCount });
+        let downloadedCount = 0;
         for (const url of plan.urls) {
           let response;
           try {
@@ -75,8 +79,12 @@
           } catch (error) {
             throw new Error(`Offline assets: cache.put falló para ${url}: ${error.message}`);
           }
+          downloadedCount += 1;
+          reportProgress({ phase: "downloading", completedCount: downloadedCount, totalCount });
         }
 
+        reportProgress({ phase: "verifying", completedCount: 0, totalCount });
+        let verifiedCount = 0;
         for (const url of plan.urls) {
           let stored;
           try {
@@ -87,6 +95,8 @@
           if (!stored) {
             throw new Error(`Offline assets: asset ausente durante verificación: ${url}`);
           }
+          verifiedCount += 1;
+          reportProgress({ phase: "verifying", completedCount: verifiedCount, totalCount });
         }
 
         return {

@@ -87,6 +87,7 @@ main h3 {
 
 .routine-title-actions {
   display: inline-flex;
+  align-items: center;
   gap: 4px;
 }
 
@@ -116,6 +117,10 @@ main h3 {
 .routine-help-btn:hover,
 .routine-help-btn:focus-visible {
   opacity: 0.9;
+}
+
+.routine-offline-preparation-btn img {
+  filter: brightness(0) saturate(100%) invert(85%);
 }
 .slogan {
   font-size: 1em;
@@ -1055,6 +1060,26 @@ text-align: center;
 .offline-preparation-form {
   display: grid;
   gap: 12px;
+}
+
+.offline-preparation-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.offline-preparation-spinner {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #f3b13f;
+  border-radius: 50%;
+  animation: offline-preparation-spin 0.8s linear infinite;
+}
+
+@keyframes offline-preparation-spin {
+  to { transform: rotate(360deg); }
 }
 
 #popupBody.update-flow {
