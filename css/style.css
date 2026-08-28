@@ -87,6 +87,7 @@ main h3 {
 
 .routine-title-actions {
   display: inline-flex;
+  align-items: center;
   gap: 4px;
 }
 
@@ -118,18 +119,8 @@ main h3 {
   opacity: 0.9;
 }
 
-.routine-offline-preparation-btn {
-  height: 24px;
-  opacity: 0.9;
-}
-
 .routine-offline-preparation-btn img {
-  filter: brightness(0) invert(1);
-}
-
-.routine-offline-preparation-btn:hover,
-.routine-offline-preparation-btn:focus-visible {
-  opacity: 1;
+  filter: brightness(0) saturate(100%) invert(85%);
 }
 .slogan {
   font-size: 1em;
