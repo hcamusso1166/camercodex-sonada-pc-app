@@ -77,6 +77,19 @@ main h3 {
   height: 16px;
 }
 
+.routine-title-with-offline-preparation {
+  grid-template-columns: 52px minmax(0, 1fr) 52px;
+}
+
+.routine-title-spacer--two-actions {
+  width: 52px;
+}
+
+.routine-title-actions {
+  display: inline-flex;
+  gap: 4px;
+}
+
 .routine-help-btn {
   -webkit-appearance: none;
   appearance: none;
@@ -1028,6 +1041,20 @@ text-align: center;
   font-size: 0.5em;
   margin: 0 0 8px;
   font-family: 'Georgia', serif;
+}
+
+#popupBody.offline-preparation-flow {
+  min-width: min(360px, 75vw);
+  text-align: left;
+}
+
+#popupBody.offline-preparation-flow h3 {
+  color: #f3b13f;
+}
+
+.offline-preparation-form {
+  display: grid;
+  gap: 12px;
 }
 
 #popupBody.update-flow {

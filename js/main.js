@@ -633,6 +633,7 @@ if (popupCloseBtn && popupModal && popupBody && menuDropdown) {
     popupModal.classList.add('hidden');
     popupBody.classList.remove('update-flow');
     popupBody.classList.remove('routine-help-flow');
+    popupBody.classList.remove('offline-preparation-flow');
     popupBody.innerHTML = '';          // Limpiar contenido del popup
     menuDropdown.classList.add('hidden');  // Cerrar menú
   });
@@ -791,9 +792,33 @@ function initRoutineHelpButton() {
     abrirPopupRuta(`../info/rutinas/${helpConfig.file}`);
   });
 
+  const hasOfflinePreparation = currentView === 'bookTestImposibleV2.html';
+  let rightControls = helpButton;
+  if (hasOfflinePreparation) {
+    routineTitle.classList.add('routine-title-with-offline-preparation');
+    leftSpacer.classList.add('routine-title-spacer--two-actions');
+
+    const settingsButton = document.createElement('button');
+    settingsButton.type = 'button';
+    settingsButton.className = 'routine-help-btn routine-offline-preparation-btn';
+    settingsButton.title = 'Preparación offline';
+    settingsButton.setAttribute('aria-label', 'Preparación offline');
+    settingsButton.innerHTML = '<img src="../icons/settings.svg" alt="">';
+    settingsButton.addEventListener('click', () => {
+      if (window.BookTestImposibleV2OfflineApp?.openPreparationModal) {
+        window.BookTestImposibleV2OfflineApp.openPreparationModal();
+      }
+    });
+
+    rightControls = document.createElement('span');
+    rightControls.className = 'routine-title-actions';
+    rightControls.appendChild(helpButton);
+    rightControls.appendChild(settingsButton);
+  }
+
   routineTitle.appendChild(leftSpacer);
   routineTitle.appendChild(titleTextNode);
-  routineTitle.appendChild(helpButton);
+  routineTitle.appendChild(rightControls);
 }
 
 async function abrirPopupRuta(filePath) {
@@ -813,6 +838,7 @@ async function abrirPopupRuta(filePath) {
     }
 
     popupBody.classList.remove('update-flow');
+    popupBody.classList.remove('offline-preparation-flow');
     popupBody.classList.add('routine-help-flow');
     popupBody.innerHTML = mainElement.innerHTML;
     popupModal.classList.remove("hidden");
