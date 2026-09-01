@@ -378,6 +378,25 @@ This repository contains JavaScript tests using the Node.js built-in test runner
 
 Run all tests relevant to modified code.
 
+### Mandatory validation for code Pull Requests
+
+Every Pull Request that modifies executable or application code must run both validation layers before it can be declared fully validated:
+
+1. focused tests relevant to the modified area;
+2. the complete repository test suite:
+
+```bash
+node --test test/*.test.js
+```
+
+Both layers are mandatory for code Pull Requests. Passing focused tests does not replace the complete suite, and passing the complete suite does not replace focused tests for the modified behavior.
+
+If focused tests do not exist for modified behavior, add or update focused tests when practical, or explicitly report the validation gap.
+
+Documentation-only or governance-only Pull Requests that modify no executable or application code are exempt from the complete functional suite unless the task explicitly requires it.
+
+If either mandatory validation layer cannot be executed or fails, report the exact reason and do not claim complete validation.
+
 A known existing test is:
 
 ```bash
