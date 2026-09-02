@@ -136,6 +136,7 @@ const { request } = event;
   const url = new URL(request.url);
   const isSameOrigin = url.origin === self.location.origin;
   const isInfoRoute = isSameOrigin && url.pathname.startsWith('/info/');
+  const isBookRoute = isSameOrigin && url.pathname.startsWith('/books/');
   const isHtmlRequest =
     request.mode === 'navigate' ||
     (request.headers.get('accept') || '').includes('text/html');
@@ -160,6 +161,13 @@ const { request } = event;
         return response;
       })()
     );
+    return;
+  }
+
+  // Las rutas /books/ sin bookId válido (por ejemplo /books/index.json)
+  // también quedan fuera del caché general y se resuelven sólo por red.
+  if (isBookRoute) {
+    event.respondWith(fetch(request));
     return;
   }
 
