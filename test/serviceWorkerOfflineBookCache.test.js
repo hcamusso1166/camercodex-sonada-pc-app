@@ -20,6 +20,11 @@ const BTI_COLD_START_MODULES = [
   '/js/rutinas/bookTestImposibleV2OfflinePreparation.js',
   '/js/rutinas/bookTestImposibleV2OfflineApp.js',
 ];
+const BTI_RESOLUTION_AUDIO_PATHS = [
+  '/audios/audios_especiales/pagina.mp3',
+  '/audios/audios_especiales/renglon.mp3',
+];
+const BTI_MISSING_SLOT_AUDIO_PATH = '/audios/audios_especiales/slot.mp3';
 
 function createCache(initialEntries = {}) {
   const entries = new Map(Object.entries(initialEntries));
@@ -112,11 +117,19 @@ test('cache-files includes every BTI offline cold-start module', () => {
   assert.equal(CACHE_FILES.includes(BOOKS_INDEX_PATH), true);
 });
 
+test('cache-files includes BTI resolution audios and deliberately excludes missing slot audio', () => {
+  for (const audioPath of BTI_RESOLUTION_AUDIO_PATHS) {
+    assert.equal(CACHE_FILES.includes(audioPath), true, `${audioPath} must be in cache-files.json`);
+  }
+  assert.equal(CACHE_FILES.includes(BTI_MISSING_SLOT_AUDIO_PATH), false);
+});
+
 test('precache includes books/index metadata but excludes book-scoped assets', async () => {
   const current = createCache();
   const scopedManifest = `/books/${BOOK_ID}/runtime-manifest.json`;
   const manifest = [
     '/css/style.css',
+    ...BTI_RESOLUTION_AUDIO_PATHS,
     BOOKS_INDEX_PATH,
     scopedManifest,
     '/js/main.js',
@@ -136,7 +149,12 @@ test('precache includes books/index metadata but excludes book-scoped assets', a
 
   await dispatchInstall(listeners);
 
-  assert.deepEqual(current.addCalls, ['/css/style.css', BOOKS_INDEX_PATH, '/js/main.js', '/cache-files.json']);
+  assert.deepEqual(current.addCalls, ['/css/style.css', ...BTI_RESOLUTION_AUDIO_PATHS, BOOKS_INDEX_PATH, '/js/main.js', '/cache-files.json']);
+  assert.deepEqual(
+    current.addCalls.filter(entry => BTI_RESOLUTION_AUDIO_PATHS.includes(entry)),
+    BTI_RESOLUTION_AUDIO_PATHS
+  );
+  assert.equal(current.addCalls.includes(BTI_MISSING_SLOT_AUDIO_PATH), false);
   assert.equal(current.addCalls.includes(scopedManifest), false);
   assert.deepEqual(
     current.addCalls.filter(entry => typeof entry === 'string' && entry.startsWith('/books/') && entry !== BOOKS_INDEX_PATH),
