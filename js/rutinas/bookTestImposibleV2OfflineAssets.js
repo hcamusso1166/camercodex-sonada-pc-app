@@ -79,6 +79,17 @@
           } catch (error) {
             throw new Error(`Offline assets: cache.put falló para ${url}: ${error.message}`);
           }
+
+          let storedImmediately;
+          try {
+            storedImmediately = await cache.match(url);
+          } catch (error) {
+            throw new Error(`Offline assets: cache.match inmediato falló para ${url}: ${error.message}`);
+          }
+          if (!storedImmediately) {
+            throw new Error(`Offline assets: asset ausente inmediatamente después de cache.put: ${url}`);
+          }
+
           downloadedCount += 1;
           reportProgress({ phase: "downloading", completedCount: downloadedCount, totalCount });
         }
