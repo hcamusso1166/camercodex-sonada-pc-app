@@ -11,17 +11,26 @@ const urls = [
 const validPlan = { schemaVersion: 1, profile: 'bti-offline-plan-v1', bookId, urls };
 
 function createHarness(overrides = {}) {
-  const calls = { fetch: [], put: [], match: [], delete: [], open: [] };
+  const calls = { fetch: [], put: [], match: [], delete: [], open: [], events: [] };
   const stored = new Map();
+  const matchCounts = new Map();
   const cache = {
     async put(url, response) {
       calls.put.push([url, response]);
+      calls.events.push(['put', url]);
       if (overrides.putError) throw overrides.putError;
       stored.set(url, response);
     },
     async match(url) {
       calls.match.push(url);
-      if (overrides.missingUrl === url) return undefined;
+      calls.events.push(['match', url]);
+      const count = (matchCounts.get(url) || 0) + 1;
+      matchCounts.set(url, count);
+      if (overrides.matchErrorUrl === url && count === 1) {
+        throw overrides.matchError || new Error('match falló');
+      }
+      if (overrides.missingImmediateUrl === url && count === 1) return undefined;
+      if (overrides.missingFinalUrl === url && count > 1) return undefined;
       return stored.get(url);
     },
   };
@@ -31,6 +40,7 @@ function createHarness(overrides = {}) {
   };
   const fetchImpl = async url => {
     calls.fetch.push(url);
+    calls.events.push(['fetch', url]);
     if (overrides.fetchError) throw overrides.fetchError;
     return { ok: !overrides.httpError, url };
   };
@@ -40,8 +50,8 @@ function createHarness(overrides = {}) {
   };
 }
 
-test('reporta el avance real de descarga y verificación del plan', async () => {
-  const { materialize } = createHarness();
+test('reporta el avance real de descarga sólo después del match inmediato y conserva la verificación final', async () => {
+  const { calls, materialize } = createHarness();
   const progress = [];
 
   await materialize(validPlan, update => progress.push(update));
@@ -54,15 +64,20 @@ test('reporta el avance real de descarga y verificación del plan', async () => 
     { phase: 'verifying', completedCount: 1, totalCount: urls.length },
     { phase: 'verifying', completedCount: 2, totalCount: urls.length },
   ]);
+  assert.deepEqual(calls.events, [
+    ['fetch', urls[0]], ['put', urls[0]], ['match', urls[0]],
+    ['fetch', urls[1]], ['put', urls[1]], ['match', urls[1]],
+    ['match', urls[0]], ['match', urls[1]],
+  ]);
 });
 
-test('descarga, almacena y verifica secuencialmente todo el plan antes de quedar ready', async () => {
+test('descarga, confirma persistencia inmediata y verifica secuencialmente todo el plan antes de quedar ready', async () => {
   const { calls, materialize } = createHarness();
   const result = await materialize(validPlan);
 
   assert.deepEqual(calls.fetch, urls);
   assert.deepEqual(calls.put.map(([url]) => url), urls);
-  assert.deepEqual(calls.match, urls);
+  assert.deepEqual(calls.match, [...urls, ...urls]);
   assert.deepEqual(calls.open, [cacheName]);
   assert.deepEqual(calls.delete, [cacheName]);
   assert.deepEqual(result, {
@@ -77,11 +92,58 @@ test('descarga, almacena y verifica secuencialmente todo el plan antes de quedar
   });
 });
 
+test('asset ausente en match inmediato rechaza, limpia y no inicia el fetch siguiente', async () => {
+  const { calls, materialize } = createHarness({ missingImmediateUrl: urls[0] });
+
+  await assert.rejects(materialize(validPlan), /ausente inmediatamente.*runtime-manifest\.json/);
+
+  assert.deepEqual(calls.fetch, [urls[0]]);
+  assert.deepEqual(calls.put.map(([url]) => url), [urls[0]]);
+  assert.deepEqual(calls.match, [urls[0]]);
+  assert.equal(calls.delete.at(-1), cacheName);
+  assert.equal(calls.delete.length, 2);
+});
+
+test('el progreso downloading no avanza cuando falla el match inmediato', async () => {
+  const { materialize } = createHarness({ missingImmediateUrl: urls[0] });
+  const progress = [];
+
+  await assert.rejects(materialize(validPlan, update => progress.push(update)));
+
+  assert.deepEqual(progress, [
+    { phase: 'downloading', completedCount: 0, totalCount: urls.length },
+  ]);
+});
+
+test('excepción en match inmediato rechaza, limpia y no inicia el fetch siguiente', async () => {
+  const { calls, materialize } = createHarness({
+    matchErrorUrl: urls[0],
+    matchError: new Error('lectura imposible'),
+  });
+
+  await assert.rejects(materialize(validPlan), /cache\.match inmediato falló.*lectura imposible/);
+
+  assert.deepEqual(calls.fetch, [urls[0]]);
+  assert.deepEqual(calls.match, [urls[0]]);
+  assert.equal(calls.delete.at(-1), cacheName);
+  assert.equal(calls.delete.length, 2);
+});
+
+test('la verificación final detecta un asset que desaparece después del match inmediato', async () => {
+  const { calls, materialize } = createHarness({ missingFinalUrl: urls[0] });
+
+  await assert.rejects(materialize(validPlan), /ausente durante verificación.*runtime-manifest\.json/);
+
+  assert.deepEqual(calls.fetch, urls);
+  assert.deepEqual(calls.match, [...urls, urls[0]]);
+  assert.equal(calls.delete.at(-1), cacheName);
+  assert.equal(calls.delete.length, 2);
+});
+
 for (const scenario of [
   { name: 'respuesta HTTP no OK', overrides: { httpError: true }, error: /HTTP no OK.*runtime-manifest\.json/ },
   { name: 'fallo de fetch', overrides: { fetchError: new Error('sin red') }, error: /fetch falló.*runtime-manifest\.json/ },
   { name: 'fallo de cache.put', overrides: { putError: new Error('sin espacio') }, error: /cache\.put falló.*runtime-manifest\.json/ },
-  { name: 'asset ausente en verificación', overrides: { missingUrl: urls[1] }, error: /ausente durante verificación.*line-001_p1\.mp3/ },
 ]) {
   test(`${scenario.name} rechaza y elimina el cache incompleto`, async () => {
     const { calls, materialize } = createHarness(scenario.overrides);
@@ -106,6 +168,6 @@ for (const scenario of [
   test(`${scenario.name} se rechaza antes de efectuar I/O`, async () => {
     const { calls, materialize } = createHarness();
     await assert.rejects(materialize(scenario.plan), scenario.error);
-    assert.deepEqual(calls, { fetch: [], put: [], match: [], delete: [], open: [] });
+    assert.deepEqual(calls, { fetch: [], put: [], match: [], delete: [], open: [], events: [] });
   });
 }
