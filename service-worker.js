@@ -24,6 +24,9 @@ async function precache() {
     }
 
     await Promise.all(files.map(async (path) => {
+      if (typeof path === 'string' && path.startsWith('/books/')) {
+        return;
+      }
       try {
         await cache.add(path);
       } catch (err) {

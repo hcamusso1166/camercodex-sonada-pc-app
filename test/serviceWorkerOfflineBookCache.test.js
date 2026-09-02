@@ -17,6 +17,7 @@ function createCache(initialEntries = {}) {
   return {
     matchCalls: [],
     putCalls: [],
+    addCalls: [],
     async match(key) {
       this.matchCalls.push(key);
       return entries.get(typeof key === 'string' ? key : key.url);
@@ -25,7 +26,9 @@ function createCache(initialEntries = {}) {
       this.putCalls.push(key);
       entries.set(typeof key === 'string' ? key : key.url, value);
     },
-    async add() {}
+    async add(key) {
+      this.addCalls.push(key);
+    }
   };
 }
 
@@ -74,6 +77,12 @@ function loadServiceWorker({ cacheEntries = {}, fetchImpl } = {}) {
   return { listeners, cacheMap, calls };
 }
 
+async function dispatchInstall(listeners) {
+  let completion;
+  listeners.install({ waitUntil(promise) { completion = promise; } });
+  await completion;
+}
+
 async function dispatchActivate(listeners) {
   let completion;
   listeners.activate({ waitUntil(promise) { completion = promise; } });
@@ -86,6 +95,37 @@ async function dispatchFetch(listeners, request) {
   assert.ok(responsePromise, 'fetch handler should call respondWith');
   return responsePromise;
 }
+
+test('precache excludes every /books/ path from current cache while preserving general app entries', async () => {
+  const current = createCache();
+  const manifest = [
+    '/css/style.css',
+    '/books/index.json',
+    `/books/${BOOK_ID}/runtime-manifest.json`,
+    '/js/main.js',
+  ];
+  const { listeners, calls } = loadServiceWorker({
+    cacheEntries: { [CACHE_NAME]: current },
+    fetchImpl: async (input) => {
+      if (input === '/cache-files.json') {
+        return new Response(JSON.stringify(manifest), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      return new Response('network');
+    }
+  });
+
+  await dispatchInstall(listeners);
+
+  assert.deepEqual(current.addCalls, ['/css/style.css', '/js/main.js', '/cache-files.json']);
+  assert.equal(
+    current.addCalls.some(entry => typeof entry === 'string' && entry.startsWith('/books/')),
+    false
+  );
+  assert.deepEqual(calls.fetch.map(args => args[0]), ['/cache-files.json']);
+});
 
 test('activate preserves current and BTI offline caches while deleting unrecognized caches', async () => {
   const current = createCache();
