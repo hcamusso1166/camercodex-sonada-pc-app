@@ -40,6 +40,22 @@ function createHarness(overrides = {}) {
   };
 }
 
+test('reporta el avance real de descarga y verificación del plan', async () => {
+  const { materialize } = createHarness();
+  const progress = [];
+
+  await materialize(validPlan, update => progress.push(update));
+
+  assert.deepEqual(progress, [
+    { phase: 'downloading', completedCount: 0, totalCount: urls.length },
+    { phase: 'downloading', completedCount: 1, totalCount: urls.length },
+    { phase: 'downloading', completedCount: 2, totalCount: urls.length },
+    { phase: 'verifying', completedCount: 0, totalCount: urls.length },
+    { phase: 'verifying', completedCount: 1, totalCount: urls.length },
+    { phase: 'verifying', completedCount: 2, totalCount: urls.length },
+  ]);
+});
+
 test('descarga, almacena y verifica secuencialmente todo el plan antes de quedar ready', async () => {
   const { calls, materialize } = createHarness();
   const result = await materialize(validPlan);

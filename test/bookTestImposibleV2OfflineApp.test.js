@@ -35,8 +35,8 @@ function createHarness(overrides = {}) {
     },
   };
   const preparationService = {
-    async prepare(book, receivedManifest) {
-      calls.prepare.push([book, receivedManifest]);
+    async prepare(book, receivedManifest, onProgress) {
+      calls.prepare.push([book, receivedManifest, onProgress]);
       if (preparationError) throw preparationError;
       return result;
     },
@@ -61,9 +61,20 @@ test('carga el runtime manifest del libro elegido y delega exactamente una prepa
   const received = await app.prepareBook(preparableBook);
 
   assert.deepEqual(calls.loadManifest, [[preparableBook, fetchJson]]);
-  assert.deepEqual(calls.prepare, [[preparableBook, manifest]]);
+  assert.deepEqual(calls.prepare, [[preparableBook, manifest, undefined]]);
   assert.equal(calls.prepare.length, 1);
   assert.equal(received, result);
+  assert.equal(received.ready, true);
+});
+
+test('reenvía el progreso al coordinator sin duplicar la preparación', async () => {
+  const { app, calls } = createHarness();
+  const onProgress = () => {};
+
+  const received = await app.prepareBook(preparableBook, onProgress);
+
+  assert.equal(calls.prepare.length, 1);
+  assert.equal(calls.prepare[0][2], onProgress);
   assert.equal(received.ready, true);
 });
 
@@ -88,4 +99,61 @@ test('rechaza preparar un libro sin runtimeManifest', async () => {
   await assert.rejects(app.prepareBook(unavailableBook), /no tiene runtime manifest/);
   assert.deepEqual(calls.loadManifest, []);
   assert.deepEqual(calls.prepare, []);
+});
+
+test('el modal inicia exactamente una preparación por click y muestra progreso real', async () => {
+  const originalDocument = global.document;
+  const listeners = {};
+  const select = { value: preparableBook.bookId, appendChild() {} };
+  const button = {
+    disabled: false,
+    addEventListener(type, listener) { listeners[type] = listener; },
+  };
+  const status = { textContent: '' };
+  const spinner = { hidden: true };
+  const elements = {
+    '#offlinePreparationBook': select,
+    '#offlinePreparationSubmit': button,
+    '#offlinePreparationStatus': status,
+    '#offlinePreparationSpinner': spinner,
+  };
+  const popupBody = {
+    classList: { add() {}, remove() {} },
+    innerHTML: '',
+    querySelector(selector) { return elements[selector]; },
+  };
+  const popupModal = { classList: { remove() {} } };
+  let resolvePreparation;
+  const calls = [];
+  const app = {
+    async listPreparableBooks() { return [preparableBook]; },
+    prepareBook(book, onProgress) {
+      calls.push(book);
+      onProgress({ phase: 'downloading', completedCount: 1, totalCount: 2 });
+      return new Promise(resolve => { resolvePreparation = resolve; });
+    },
+  };
+  global.document = {
+    getElementById(id) { return id === 'popupBody' ? popupBody : popupModal; },
+    createElement() { return {}; },
+  };
+
+  try {
+    await offlineAppApi.openPreparationModal(app);
+    const firstClick = listeners.click();
+    const concurrentClick = listeners.click();
+
+    assert.equal(calls.length, 1);
+    assert.equal(button.disabled, true);
+    assert.equal(spinner.hidden, false);
+    assert.equal(status.textContent, 'Descargando recursos: 1 / 2');
+
+    resolvePreparation({ ready: true, verifiedCount: 2 });
+    await Promise.all([firstClick, concurrentClick]);
+    assert.equal(status.textContent, 'Libro listo para uso offline (2 recursos verificados)');
+    assert.equal(spinner.hidden, true);
+    assert.equal(button.disabled, false);
+  } finally {
+    global.document = originalDocument;
+  }
 });
