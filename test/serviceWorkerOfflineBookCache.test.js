@@ -127,6 +127,25 @@ test('precache excludes every /books/ path from current cache while preserving g
   assert.deepEqual(calls.fetch.map(args => args[0]), ['/cache-files.json']);
 });
 
+test('/books/index.json goes directly to network without current-cache or dedicated-cache access', async () => {
+  const indexPath = '/books/index.json';
+  const current = createCache({ [indexPath]: new Response('stale index') });
+  const { listeners, calls } = loadServiceWorker({
+    cacheEntries: { [CACHE_NAME]: current },
+    fetchImpl: async () => new Response('fresh index')
+  });
+
+  const response = await dispatchFetch(listeners, new Request(`${APP_ORIGIN}${indexPath}`));
+
+  assert.equal(await response.text(), 'fresh index');
+  assert.deepEqual(calls.has, []);
+  assert.deepEqual(calls.opened, []);
+  assert.deepEqual(current.matchCalls, []);
+  assert.deepEqual(current.putCalls, []);
+  assert.equal(calls.fetch.length, 1);
+  assert.equal(new URL(calls.fetch[0][0].url).pathname, indexPath);
+});
+
 test('activate preserves current and BTI offline caches while deleting unrecognized caches', async () => {
   const current = createCache();
   const offline = createCache();
