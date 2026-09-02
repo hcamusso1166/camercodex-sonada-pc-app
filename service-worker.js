@@ -1,6 +1,7 @@
 const CACHE_NAME = 'camer-codex-cache-v15';
 const BTI_OFFLINE_CACHE_PREFIX = 'camer-codex-bti-offline-v1-';
 const MANIFEST_URL = '/cache-files.json';
+const BOOKS_INDEX_PATH = '/books/index.json';
 //const CARTAS_URL = '/audios/cartas.json';
 
 // Los archivos listados en cache-files.json se precargan durante la
@@ -24,7 +25,7 @@ async function precache() {
     }
 
     await Promise.all(files.map(async (path) => {
-      if (typeof path === 'string' && path.startsWith('/books/')) {
+      if (typeof path === 'string' && path.startsWith('/books/') && path !== BOOKS_INDEX_PATH) {
         return;
       }
       try {
@@ -137,6 +138,7 @@ const { request } = event;
   const isSameOrigin = url.origin === self.location.origin;
   const isInfoRoute = isSameOrigin && url.pathname.startsWith('/info/');
   const isBookRoute = isSameOrigin && url.pathname.startsWith('/books/');
+  const isBooksIndex = isSameOrigin && url.pathname === BOOKS_INDEX_PATH;
   const isHtmlRequest =
     request.mode === 'navigate' ||
     (request.headers.get('accept') || '').includes('text/html');
@@ -164,8 +166,27 @@ const { request } = event;
     return;
   }
 
-  // Las rutas /books/ sin bookId válido (por ejemplo /books/index.json)
-  // también quedan fuera del caché general y se resuelven sólo por red.
+  // books/index.json es metadata global del app-shell y debe estar disponible
+  // para poder resolver el libro durante un cold start sin red.
+  if (isBooksIndex) {
+    event.respondWith(
+      (async () => {
+        const cache = await caches.open(CACHE_NAME);
+        const cachedResponse = await cache.match(BOOKS_INDEX_PATH);
+        if (cachedResponse) {
+          return cachedResponse;
+        }
+        const networkResponse = await fetch(request);
+        if (networkResponse.ok) {
+          await cache.put(BOOKS_INDEX_PATH, networkResponse.clone());
+        }
+        return networkResponse;
+      })()
+    );
+    return;
+  }
+
+  // Las demás rutas /books/ sin bookId válido quedan fuera del caché general.
   if (isBookRoute) {
     event.respondWith(fetch(request));
     return;

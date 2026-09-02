@@ -6,11 +6,20 @@ const vm = require('node:vm');
 
 const SERVICE_WORKER_PATH = path.join(__dirname, '..', 'service-worker.js');
 const SERVICE_WORKER_SOURCE = fs.readFileSync(SERVICE_WORKER_PATH, 'utf8');
+const CACHE_FILES_PATH = path.join(__dirname, '..', 'cache-files.json');
+const CACHE_FILES = JSON.parse(fs.readFileSync(CACHE_FILES_PATH, 'utf8'));
 const APP_ORIGIN = 'https://app.example';
 const CACHE_NAME = 'camer-codex-cache-v15';
+const BOOKS_INDEX_PATH = '/books/index.json';
 const BOOK_ID = 'narnia-el-sobrino-del-mago';
 const OFFLINE_CACHE_NAME = `camer-codex-bti-offline-v1-${BOOK_ID}`;
 const BOOK_PATH = `/books/${BOOK_ID}/audios/page-011/line-001.mp3`;
+const BTI_COLD_START_MODULES = [
+  '/js/rutinas/bookTestImposibleV2OfflinePlan.js',
+  '/js/rutinas/bookTestImposibleV2OfflineAssets.js',
+  '/js/rutinas/bookTestImposibleV2OfflinePreparation.js',
+  '/js/rutinas/bookTestImposibleV2OfflineApp.js',
+];
 
 function createCache(initialEntries = {}) {
   const entries = new Map(Object.entries(initialEntries));
@@ -96,12 +105,20 @@ async function dispatchFetch(listeners, request) {
   return responsePromise;
 }
 
-test('precache excludes every /books/ path from current cache while preserving general app entries', async () => {
+test('cache-files includes every BTI offline cold-start module', () => {
+  for (const modulePath of BTI_COLD_START_MODULES) {
+    assert.equal(CACHE_FILES.includes(modulePath), true, `${modulePath} must be in cache-files.json`);
+  }
+  assert.equal(CACHE_FILES.includes(BOOKS_INDEX_PATH), true);
+});
+
+test('precache includes books/index metadata but excludes book-scoped assets', async () => {
   const current = createCache();
+  const scopedManifest = `/books/${BOOK_ID}/runtime-manifest.json`;
   const manifest = [
     '/css/style.css',
-    '/books/index.json',
-    `/books/${BOOK_ID}/runtime-manifest.json`,
+    BOOKS_INDEX_PATH,
+    scopedManifest,
     '/js/main.js',
   ];
   const { listeners, calls } = loadServiceWorker({
@@ -119,31 +136,49 @@ test('precache excludes every /books/ path from current cache while preserving g
 
   await dispatchInstall(listeners);
 
-  assert.deepEqual(current.addCalls, ['/css/style.css', '/js/main.js', '/cache-files.json']);
-  assert.equal(
-    current.addCalls.some(entry => typeof entry === 'string' && entry.startsWith('/books/')),
-    false
+  assert.deepEqual(current.addCalls, ['/css/style.css', BOOKS_INDEX_PATH, '/js/main.js', '/cache-files.json']);
+  assert.equal(current.addCalls.includes(scopedManifest), false);
+  assert.deepEqual(
+    current.addCalls.filter(entry => typeof entry === 'string' && entry.startsWith('/books/') && entry !== BOOKS_INDEX_PATH),
+    []
   );
   assert.deepEqual(calls.fetch.map(args => args[0]), ['/cache-files.json']);
 });
 
-test('/books/index.json goes directly to network without current-cache or dedicated-cache access', async () => {
-  const indexPath = '/books/index.json';
-  const current = createCache({ [indexPath]: new Response('stale index') });
+test('/books/index.json is served from current cache without network or dedicated-cache access', async () => {
+  const current = createCache({ [BOOKS_INDEX_PATH]: new Response('cached index') });
+  const { listeners, calls } = loadServiceWorker({
+    cacheEntries: { [CACHE_NAME]: current },
+    fetchImpl: async () => {
+      throw new Error('network should not be used');
+    }
+  });
+
+  const response = await dispatchFetch(listeners, new Request(`${APP_ORIGIN}${BOOKS_INDEX_PATH}`));
+
+  assert.equal(await response.text(), 'cached index');
+  assert.deepEqual(calls.has, []);
+  assert.deepEqual(calls.opened, [CACHE_NAME]);
+  assert.deepEqual(current.matchCalls, [BOOKS_INDEX_PATH]);
+  assert.deepEqual(current.putCalls, []);
+  assert.equal(calls.fetch.length, 0);
+});
+
+test('/books/index.json network fallback is stored in current cache', async () => {
+  const current = createCache();
   const { listeners, calls } = loadServiceWorker({
     cacheEntries: { [CACHE_NAME]: current },
     fetchImpl: async () => new Response('fresh index')
   });
 
-  const response = await dispatchFetch(listeners, new Request(`${APP_ORIGIN}${indexPath}`));
+  const response = await dispatchFetch(listeners, new Request(`${APP_ORIGIN}${BOOKS_INDEX_PATH}`));
 
   assert.equal(await response.text(), 'fresh index');
   assert.deepEqual(calls.has, []);
-  assert.deepEqual(calls.opened, []);
-  assert.deepEqual(current.matchCalls, []);
-  assert.deepEqual(current.putCalls, []);
+  assert.deepEqual(calls.opened, [CACHE_NAME]);
+  assert.deepEqual(current.matchCalls, [BOOKS_INDEX_PATH]);
+  assert.deepEqual(current.putCalls, [BOOKS_INDEX_PATH]);
   assert.equal(calls.fetch.length, 1);
-  assert.equal(new URL(calls.fetch[0][0].url).pathname, indexPath);
 });
 
 test('activate preserves current and BTI offline caches while deleting unrecognized caches', async () => {
