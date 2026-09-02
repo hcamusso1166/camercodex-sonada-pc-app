@@ -77,7 +77,7 @@ self.addEventListener('activate', (event) => {
   })());
 });
 
-async function matchOfflineBookAsset(url) {
+function getOfflineBookCacheName(url) {
   if (url.origin !== self.location.origin) {
     return undefined;
   }
@@ -87,7 +87,14 @@ async function matchOfflineBookAsset(url) {
     return undefined;
   }
 
-  const offlineCacheName = `${BTI_OFFLINE_CACHE_PREFIX}${match[1]}`;
+  return `${BTI_OFFLINE_CACHE_PREFIX}${match[1]}`;
+}
+
+async function matchOfflineBookAsset(url, offlineCacheName = getOfflineBookCacheName(url)) {
+  if (!offlineCacheName) {
+    return undefined;
+  }
+
   if (!(await caches.has(offlineCacheName))) {
     return undefined;
   }
@@ -113,9 +120,44 @@ const { request } = event;
   const isHtmlRequest =
     request.mode === 'navigate' ||
     (request.headers.get('accept') || '').includes('text/html');
+  const offlineBookCacheName = getOfflineBookCacheName(url);
 
-    if (isInfoRoute) {
+  if (isInfoRoute) {
     event.respondWith(fetch(request, { cache: 'no-store' }));
+    return;
+  }
+
+  if (offlineBookCacheName) {
+    event.respondWith(
+      (async () => {
+        let response = await matchOfflineBookAsset(url, offlineBookCacheName);
+        if (!response) {
+          response = await fetch(rangeHeader ? url.pathname : request);
+        }
+
+        if (!rangeHeader) {
+          return response;
+        }
+
+        const buffer = await response.arrayBuffer();
+        const bytes = /bytes=(\d+)-(?:(\d+))?/.exec(rangeHeader);
+        const start = Number(bytes[1]);
+        const end = bytes[2] ? Number(bytes[2]) : buffer.byteLength - 1;
+        const chunk = buffer.slice(start, end + 1);
+        const headers = [
+          ['Content-Range', `bytes ${start}-${end}/${buffer.byteLength}`],
+          ['Accept-Ranges', 'bytes'],
+          ['Content-Length', chunk.byteLength],
+          ['Content-Type', response.headers.get('Content-Type') || 'audio/mpeg']
+        ];
+
+        return new Response(chunk, {
+          status: 206,
+          statusText: 'Partial Content',
+          headers
+        });
+      })()
+    );
     return;
   }
 
@@ -151,11 +193,7 @@ const { request } = event;
     event.respondWith(
       (async () => {
         const cache = await caches.open(CACHE_NAME);
-        let response = await matchOfflineBookAsset(url);
-
-        if (!response) {
-          response = await cache.match(url.pathname);
-        }
+        let response = await cache.match(url.pathname);
 
         if (!response) {
           const networkResponse = await fetch(url.pathname);
@@ -189,10 +227,6 @@ const { request } = event;
       (async () => {
       const cacheKey = isSameOrigin ? url.pathname : request.url;
       const cache = await caches.open(CACHE_NAME);
-      const offlineResponse = await matchOfflineBookAsset(url);
-      if (offlineResponse) {
-        return offlineResponse;
-      }
       const cachedResponse = await cache.match(cacheKey);
       if (cachedResponse) {
         return cachedResponse;

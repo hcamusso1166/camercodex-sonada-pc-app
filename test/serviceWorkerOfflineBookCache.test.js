@@ -124,20 +124,25 @@ test('normal book request uses its existing offline cache before the current cac
   assert.equal(calls.fetch.length, 0);
 });
 
-test('missing offline book cache is not opened or created and falls back to current cache', async () => {
+test('missing offline book cache is not created and goes directly to network', async () => {
   const current = createCache({ [BOOK_PATH]: new Response('current asset') });
-  const { listeners, cacheMap, calls } = loadServiceWorker({ cacheEntries: { [CACHE_NAME]: current } });
+  const { listeners, cacheMap, calls } = loadServiceWorker({
+    cacheEntries: { [CACHE_NAME]: current },
+    fetchImpl: async () => new Response('network asset')
+  });
 
   const response = await dispatchFetch(listeners, new Request(`${APP_ORIGIN}${BOOK_PATH}`));
 
-  assert.equal(await response.text(), 'current asset');
+  assert.equal(await response.text(), 'network asset');
   assert.deepEqual(calls.has, [OFFLINE_CACHE_NAME]);
   assert.equal(calls.opened.includes(OFFLINE_CACHE_NAME), false);
   assert.equal(cacheMap.has(OFFLINE_CACHE_NAME), false);
-  assert.equal(calls.fetch.length, 0);
+  assert.deepEqual(current.matchCalls, []);
+  assert.deepEqual(current.putCalls, []);
+  assert.equal(calls.fetch.length, 1);
 });
 
-test('offline cache miss continues through the historical current-cache and network path', async () => {
+test('offline cache miss goes directly to network without reading or writing current cache', async () => {
   const offline = createCache();
   const current = createCache();
   const { listeners, calls } = loadServiceWorker({
@@ -149,9 +154,9 @@ test('offline cache miss continues through the historical current-cache and netw
 
   assert.equal(await response.text(), 'network asset');
   assert.deepEqual(offline.matchCalls, [BOOK_PATH]);
-  assert.deepEqual(current.matchCalls, [BOOK_PATH]);
+  assert.deepEqual(current.matchCalls, []);
   assert.equal(calls.fetch.length, 1);
-  assert.deepEqual(current.putCalls, [BOOK_PATH]);
+  assert.deepEqual(current.putCalls, []);
 });
 
 test('non-book and invalid-book paths never inspect a BTI dedicated cache', async () => {
@@ -204,7 +209,7 @@ test('book Range request builds a 206 response from the complete offline asset w
   assert.equal(calls.fetch.length, 0);
 });
 
-test('book Range request without an offline asset preserves current-cache then network fallback', async () => {
+test('book Range request without an offline asset uses network without current-cache read or write', async () => {
   const offline = createCache();
   const current = createCache();
   const { listeners, calls } = loadServiceWorker({
@@ -221,7 +226,27 @@ test('book Range request without an offline asset preserves current-cache then n
   assert.equal(response.headers.get('Content-Range'), 'bytes 2-3/4');
   assert.equal(response.headers.get('Content-Length'), '2');
   assert.deepEqual(offline.matchCalls, [BOOK_PATH]);
-  assert.deepEqual(current.matchCalls, [BOOK_PATH]);
-  assert.deepEqual(current.putCalls, [BOOK_PATH]);
+  assert.deepEqual(current.matchCalls, []);
+  assert.deepEqual(current.putCalls, []);
   assert.equal(calls.fetch.length, 1);
+});
+
+test('non-book Range requests preserve the historical current-cache behavior', async () => {
+  const assetPath = '/audios/general.mp3';
+  const current = createCache({
+    [assetPath]: new Response(Uint8Array.from([20, 21, 22, 23]), {
+      headers: { 'Content-Type': 'audio/mpeg' }
+    })
+  });
+  const { listeners, calls } = loadServiceWorker({ cacheEntries: { [CACHE_NAME]: current } });
+  const request = new Request(`${APP_ORIGIN}${assetPath}`, { headers: { Range: 'bytes=1-2' } });
+
+  const response = await dispatchFetch(listeners, request);
+
+  assert.equal(response.status, 206);
+  assert.deepEqual([...new Uint8Array(await response.arrayBuffer())], [21, 22]);
+  assert.deepEqual(current.matchCalls, [assetPath]);
+  assert.deepEqual(current.putCalls, []);
+  assert.deepEqual(calls.has, []);
+  assert.equal(calls.fetch.length, 0);
 });
