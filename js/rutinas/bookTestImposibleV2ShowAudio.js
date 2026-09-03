@@ -386,7 +386,6 @@
       const slot = Number(slotNumber);
       if (!Number.isInteger(slot)) return [];
       return [
-        { type: "audio", src: "../audios/audios_especiales/slot.mp3", label: `[BTI_V2] Detection audio: Slot ${slot}` },
         { type: "pause", ms: 120, label: "pause:detection-slot-number" },
         ...this.buildAudioItemsFromSources(this.buildNumberAudioSequence(slot), `detection:slot:${slot}`),
       ];

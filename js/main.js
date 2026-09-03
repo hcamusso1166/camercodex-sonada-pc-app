@@ -340,6 +340,7 @@ const popupCloseBtn = document.getElementById('popupCloseBtn');
 const estadoBLEbtn = document.getElementById("verEstadoBLE");
 const APP_VERSION_CACHE_KEY = 'cc_cached_app_version';
 const UPDATE_FEEDBACK_KEY = 'cc_update_feedback';
+const BTI_OFFLINE_CACHE_PREFIX = 'camer-codex-bti-offline-v1-';
 
 function getCachedAppVersion() {
   const stored = localStorage.getItem(APP_VERSION_CACHE_KEY);
@@ -484,7 +485,9 @@ async function obtenerVersionRemota() {
 async function limpiarCacheYRecargar(versionRemota) {
   if ('caches' in window) {
     const cacheNames = await caches.keys();
-    await Promise.all(cacheNames.map((cacheName) => caches.delete(cacheName)));
+    await Promise.all(cacheNames
+      .filter((cacheName) => !cacheName.startsWith(BTI_OFFLINE_CACHE_PREFIX))
+      .map((cacheName) => caches.delete(cacheName)));
   }
 
   if ('serviceWorker' in navigator) {

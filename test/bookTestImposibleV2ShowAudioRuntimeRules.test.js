@@ -42,3 +42,11 @@ test('page 009 line 17 y page 010 line 1 no se remapean', () => {
   assert.deepEqual(Object.values(line17).map(src => src.match(/line-\d{3}_p\d\.mp3$/)[0]), ['line-017_p1.mp3', 'line-017_p2.mp3', 'line-017_p3.mp3']);
   assert.deepEqual(Object.values(line1).map(src => src.match(/page-010\/line-\d{3}_p\d\.mp3$/)[0]), ['page-010/line-001_p1.mp3', 'page-010/line-001_p2.mp3', 'page-010/line-001_p3.mp3']);
 });
+
+test('el audio de detección anuncia el número sin solicitar audio slot', () => {
+  const queue = audio.buildDetectionSlotQueue(3);
+  const sources = queue.filter(item => item.type === 'audio').map(item => item.src);
+
+  assert.deepEqual(Array.from(sources), ['../audios/suma/3.mp3']);
+  assert.equal(sources.some(src => src.endsWith('/slot.mp3')), false);
+});
