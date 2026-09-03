@@ -2,6 +2,7 @@ const CACHE_NAME = 'camer-codex-cache-v15';
 const BTI_OFFLINE_CACHE_PREFIX = 'camer-codex-bti-offline-v1-';
 const MANIFEST_URL = '/cache-files.json';
 const BOOKS_INDEX_PATH = '/books/index.json';
+const PRECACHE_REVISION = 'bti-resolution-audios-v1';
 //const CARTAS_URL = '/audios/cartas.json';
 
 // Los archivos listados en cache-files.json se precargan durante la
@@ -61,7 +62,7 @@ async function precache() {
 
 // Instalación del Service Worker y cacheo inicial de todos los recursos
 self.addEventListener('install', (event) => {
-  console.log('[ServiceWorker] Installing...');
+  console.log('[ServiceWorker] Installing...', PRECACHE_REVISION);
   event.waitUntil(precache());
   self.skipWaiting();
 });
