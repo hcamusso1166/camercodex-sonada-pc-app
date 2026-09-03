@@ -2,7 +2,7 @@ const CACHE_NAME = 'camer-codex-cache-v15';
 const BTI_OFFLINE_CACHE_PREFIX = 'camer-codex-bti-offline-v1-';
 const MANIFEST_URL = '/cache-files.json';
 const BOOKS_INDEX_PATH = '/books/index.json';
-const PRECACHE_REVISION = 'bti-resolution-audios-v1';
+const PRECACHE_REVISION = 'bti-resolution-audios-v2';
 //const CARTAS_URL = '/audios/cartas.json';
 
 // Los archivos listados en cache-files.json se precargan durante la
@@ -12,11 +12,12 @@ const PRECACHE_REVISION = 'bti-resolution-audios-v1';
 async function precache() {
   const cache = await caches.open(CACHE_NAME);
   try {
-    const response = await fetch(MANIFEST_URL);
+    const response = await fetch(MANIFEST_URL, { cache: 'no-store' });
         if (!response.ok) {
       console.warn('[ServiceWorker] No se pudo obtener el manifiesto de caché:', response.status);
       return;
     }
+    const manifestResponse = response.clone();
     let files;
     try {
       files = await response.json();
@@ -36,7 +37,7 @@ async function precache() {
       }
     }));
 
-    await cache.add(MANIFEST_URL);
+    await cache.put(MANIFEST_URL, manifestResponse);
 /*
     try {
       const cartasResp = await fetch(CARTAS_URL);

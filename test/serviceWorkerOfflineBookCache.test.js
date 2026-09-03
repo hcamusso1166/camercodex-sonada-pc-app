@@ -149,7 +149,7 @@ test('precache includes books/index metadata but excludes book-scoped assets', a
 
   await dispatchInstall(listeners);
 
-  assert.deepEqual(current.addCalls, ['/css/style.css', ...BTI_RESOLUTION_AUDIO_PATHS, BOOKS_INDEX_PATH, '/js/main.js', '/cache-files.json']);
+  assert.deepEqual(current.addCalls, ['/css/style.css', ...BTI_RESOLUTION_AUDIO_PATHS, BOOKS_INDEX_PATH, '/js/main.js']);
   assert.deepEqual(
     current.addCalls.filter(entry => BTI_RESOLUTION_AUDIO_PATHS.includes(entry)),
     BTI_RESOLUTION_AUDIO_PATHS
@@ -160,7 +160,12 @@ test('precache includes books/index metadata but excludes book-scoped assets', a
     current.addCalls.filter(entry => typeof entry === 'string' && entry.startsWith('/books/') && entry !== BOOKS_INDEX_PATH),
     []
   );
-  assert.deepEqual(calls.fetch.map(args => args[0]), ['/cache-files.json']);
+  assert.equal(calls.fetch.length, 1);
+  assert.equal(calls.fetch[0][0], '/cache-files.json');
+  assert.equal(calls.fetch[0][1].cache, 'no-store');
+  assert.deepEqual(current.putCalls, ['/cache-files.json']);
+  assert.equal(current.addCalls.includes('/cache-files.json'), false);
+  assert.deepEqual(await (await current.match('/cache-files.json')).json(), manifest);
 });
 
 test('/books/index.json is served from current cache without network or dedicated-cache access', async () => {
