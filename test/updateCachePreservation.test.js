@@ -21,6 +21,7 @@ function extractFunction(source, name) {
 test('Actualizaciones preserves populated BTI offline caches and deletes obsolete caches', async () => {
   const entries = new Map([
     ['camer-codex-bti-offline-v1-narnia-el-sobrino-del-mago', new Map([['/books/narnia/audio.mp3', 'audio-data']])],
+    ['camer-codex-bti-offline-v1-test-second-book', new Map([['/books/second-book/page-1.jpg', 'image-data']])],
     ['camer-codex-cache-v14', new Map([['/old.js', 'old-data']])],
     ['otro-cache-viejo', new Map([['/legacy.js', 'legacy-data']])],
   ]);
@@ -52,8 +53,14 @@ test('Actualizaciones preserves populated BTI offline caches and deletes obsolet
   await context.runUpdate('test-version');
 
   const offlineCache = entries.get('camer-codex-bti-offline-v1-narnia-el-sobrino-del-mago');
+  const secondOfflineCache = entries.get('camer-codex-bti-offline-v1-test-second-book');
   assert.ok(offlineCache);
   assert.equal(offlineCache.get('/books/narnia/audio.mp3'), 'audio-data');
+  assert.ok(secondOfflineCache);
+  assert.equal(secondOfflineCache.get('/books/second-book/page-1.jpg'), 'image-data');
   assert.deepEqual(deleted.sort(), ['camer-codex-cache-v14', 'otro-cache-viejo']);
-  assert.deepEqual([...entries.keys()], ['camer-codex-bti-offline-v1-narnia-el-sobrino-del-mago']);
+  assert.deepEqual([...entries.keys()], [
+    'camer-codex-bti-offline-v1-narnia-el-sobrino-del-mago',
+    'camer-codex-bti-offline-v1-test-second-book',
+  ]);
 });
