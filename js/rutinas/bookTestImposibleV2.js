@@ -11,6 +11,10 @@ const BTI_V2_BOOK_DEVICE_NAME = "MrCamerDev1.0";
 const BTI_V2_Q5_DEVICE_NAME = "MrCamerDev_Q5";
 const BTI_V2_ANTENNA8_DEBOUNCE_MS = 1200;
 const BTI_V2_Q5_ANTENNA_IDS = Object.freeze([2, 3, 4, 5, 6]);
+const BTI_V2_DETECTOR_COMMANDS = Object.freeze({
+  PAUSE: Object.freeze([0x43, 0x41, 0x01, 0x00]),
+  RESUME: Object.freeze([0x43, 0x41, 0x01, 0x01]),
+});
 const BTI_V2_PHASES = Object.freeze({
   DETECCION: "DETECCION",
   RESOLUCION: "RESOLUCION",
@@ -493,6 +497,25 @@ function getQ5PageLine(slots) {
   };
 }
 
+function sendBtiV2DetectorCommand(commandName) {
+  const command = BTI_V2_DETECTOR_COMMANDS[commandName];
+  if (!command) return;
+
+  ["bookDevice", "q5Device"].forEach(sourceRole => {
+    const payload = Uint8Array.from(command);
+    let writeResult;
+    try {
+      writeResult = window.writeBtiV2DetectorControl(sourceRole, payload);
+    } catch (error) {
+      logError(`[BTI_V2] ${commandName} failed for ${sourceRole}: ${error.message || error}`, "BLE");
+      return;
+    }
+    Promise.resolve(writeResult)
+      .then(() => logInfo(`[BTI_V2] ${commandName} sent to ${sourceRole}`, "BLE"))
+      .catch(error => logError(`[BTI_V2] ${commandName} failed for ${sourceRole}: ${error.message || error}`, "BLE"));
+  });
+}
+
 async function tryLockAndStartShow() {
   return handleDetectionFinishGate();
 }
@@ -527,6 +550,7 @@ async function handleDetectionFinishGate() {
     prepareImageEncore(selection);
     logInfo("[BTI_V2] Detection completed by antenna 8", "BLE");
     logInfo("[BTI_V2] Selection locked", "BLE");
+    sendBtiV2DetectorCommand("PAUSE");
     updateMultiAntennaSimulatorVisibility();
     renderSelection(selection);
     updatePayloadStatus("Selección fijada. Reproduciendo libro, página y renglón.", false);
@@ -1134,6 +1158,7 @@ function resetRoutineState() {
 }
 
 function resetBtiV2FlowForNewDetection() {
+  const wasSelectionLocked = routineState.selectionLocked;
   stopBtiV2AudioIfPlaying();
   resetDetectionAudioState();
   routineState.currentBook = null;
@@ -1153,6 +1178,9 @@ function resetBtiV2FlowForNewDetection() {
   clearSelectionView();
   updateMultiAntennaSimulatorVisibility();
   renderDeviceStatuses();
+  if (wasSelectionLocked) {
+    sendBtiV2DetectorCommand("RESUME");
+  }
   logInfo("[BTI_V2] Flow reset for new detection", "BLE");
   logInfo("[BTI_V2] Devices remain connected after reset", "BLE");
   logInfo("[BTI_V2] Detection antennas re-enabled", "BLE");
@@ -1399,5 +1427,6 @@ window.bookTestImposibleV2Dev = {
   shouldAcceptAntenna8Gate,
   startImageEncore,
   sendImageEncoreShowSketch,
+  sendBtiV2DetectorCommand,
   getRoutineState: () => routineState,
 };
