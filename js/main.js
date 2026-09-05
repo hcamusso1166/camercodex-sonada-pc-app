@@ -947,6 +947,28 @@ async function getQ5WriteCharacteristic() {
   return activeQ5Service.getCharacteristic(ledCharacteristic);
 }
 
+async function writeBtiV2DetectorControl(sourceRole, payload) {
+  if (!isBookTestImposibleV2View) {
+    throw new Error("BTI V2 detector control is unavailable outside Book Test Imposible V2");
+  }
+
+  const connection = bookTestConnections.find(candidate => (
+    candidate.role === sourceRole
+    && candidate.server?.connected
+    && candidate.service
+  ));
+  if (!connection) {
+    throw new Error(`${sourceRole} is not connected`);
+  }
+
+  const characteristic = await connection.service.getCharacteristic(ledCharacteristic);
+  return characteristic.writeValue(payload);
+}
+
+if (isBookTestImposibleV2View) {
+  window.writeBtiV2DetectorControl = writeBtiV2DetectorControl;
+}
+
 if (
   typeof CamerShowSketchBleTransportV1 !== "undefined"
   && typeof CamerShowSketchServiceV1 !== "undefined"
