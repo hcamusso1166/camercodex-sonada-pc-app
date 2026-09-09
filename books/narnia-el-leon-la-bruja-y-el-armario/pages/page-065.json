@@ -1,0 +1,28 @@
+{
+  "page": 65,
+  "bookId": "narnia-el-leon-la-bruja-y-el-armario",
+  "lineCount": 15,
+  "sayLines": [
+    "Después de aquello, las cosas fueron mucho ",
+    "mejor para Lucy. Peter se encargó de que Edmund ",
+    "dejara de burlarse de ella, y ni ella ni nadie tuvo ",
+    "ganas de hablar del armario, que se había conver-",
+    "tido en un tema bastante incómodo. Así pues, ",
+    "durante un tiempo pareció como si todas las ",
+    "aventuras fueran a terminarse; pero no iba a ser ",
+    "así.",
+    "La casa del profesor —sobre la que incluso él ",
+    "sabía tan poco— era tan vieja y famosa que gente ",
+    "de toda Gran Bretaña acostumbraba a pedir per-",
+    "miso para visitarla. Era la clase de casa que apare-",
+    "ce en las guías turísticas e incluso en los cuentos; y ",
+    "no era de extrañar, pues se contaban toda clase de ",
+    "cosas sobre ella, algunas más extrañas todavía "
+  ],
+  "images": [
+    {
+      "imageId": "image-001",
+      "description": ""
+    }
+  ]
+}
