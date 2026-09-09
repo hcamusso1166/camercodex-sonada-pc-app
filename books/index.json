@@ -19,7 +19,8 @@
       "root": "books/narnia-el-leon-la-bruja-y-el-armario",
       "collection": "Las crónicas de Narnia",
       "isbn": "978-950-732-098-9",
-      "language": "es"
-}
+      "language": "es",
+      "runtimeManifest": "runtime-manifest.json"
+    }
   ]
 }
