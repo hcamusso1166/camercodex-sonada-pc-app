@@ -380,7 +380,7 @@ function normalizeQ5Value(payload) {
     const digits = String(candidate ?? "").trim().replace(/[^0-9]/g, "");
     if (!digits) continue;
     const value = Number.parseInt(digits, 10);
-    if (Number.isInteger(value) && value > 0) return value;
+    if (Number.isInteger(value) && value >= 0) return value;
   }
   return null;
 }
