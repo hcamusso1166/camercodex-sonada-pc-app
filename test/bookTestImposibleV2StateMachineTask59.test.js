@@ -58,7 +58,7 @@ function createAudioHarness() {
       }
       this.status = 'completed';
     },
-    stop() {}, clearPreloaded() {},
+    stop() {}, preload() {}, clearPreloaded() {},
   };
   return { audio, played, releaseNavigation: () => navigationRelease() };
 }
@@ -125,6 +125,28 @@ test('Task 59 recorre repetición, lecturas, navegación y Encore Final con un s
   assert.equal(state.preparedImageEncore, null);
   assert.equal(state.preparedImageAudioPath, null);
   assert.equal(state.imageEncoreTriggerConsumed, false);
+});
+
+
+test('Image Encore calcula desde la página realmente leída: 3 → 9 → croquis 13 = 2 vueltas', () => {
+  const { dev } = loadRoutine();
+  const harness = createAudioHarness();
+  dev.setShowAudioForTests(harness.audio);
+  const selection = {
+    book: { bookId: 'book-1' },
+    pageNumber: 3,
+    lineNumber: 13,
+    runtimeManifest: { images: [{ page: 13, imageId: 'image-001' }] },
+    readingPlan: { targets: [{ pageNumber: 9, lineNumber: 1 }, { pageNumber: 9, lineNumber: 2 }] },
+  };
+
+  const result = dev.prepareImageEncore(selection);
+
+  assert.equal(dev.resolveImageEncoreSourcePage(selection), 9);
+  assert.equal(result.sourcePage, 9);
+  assert.equal(result.targetPage, 13);
+  assert.equal(result.turnCount, 2);
+  assert.equal(result.navigationType, 'TURN_MULTIPLE_PAGES');
 });
 
 test('NO_IMAGE_FOUND termina de forma controlada sin audio ni SHOW_SKETCH', async () => {
