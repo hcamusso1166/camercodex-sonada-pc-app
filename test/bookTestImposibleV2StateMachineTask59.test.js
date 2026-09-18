@@ -58,7 +58,7 @@ function createAudioHarness() {
       }
       this.status = 'completed';
     },
-    stop() {}, clearPreloaded() {},
+    stop() {}, preload() {}, clearPreloaded() {},
   };
   return { audio, played, releaseNavigation: () => navigationRelease() };
 }
