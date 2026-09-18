@@ -1,0 +1,40 @@
+{
+  "page": 100,
+  "bookId": "el-caballo-y-el-muchacho",
+  "lineCount": 27,
+  "sayLines": [
+    "te, por el simple aspecto de la habitación —las ",
+    "luces y sombras tenían todas un aspecto distin-",
+    "to— que debía de haber dormido durante varias ",
+    "horas. También vio la causa del estrépito: un ",
+    "valioso jarrón de porcelana que había estado colo-",
+    "cado sobre el alféizar de la ventana estaba en el ",
+    "suelo roto en treinta pedazos. Sin embargo apenas",
+    " prestó atención a aquellas cosas; en lo que sí se fijó ",
+    "fue en dos manos que se sujetaban al alféizar des-",
+    "de el exterior. Se aferraron cada vez con más fuer-",
+    "za, hasta que los nudillos se tornaron blancos, y a ",
+    "continuación apareció una cabeza y un par de ",
+    "hombros. Al cabo de un instante, un muchacho de ",
+    "la misma edad que Shasta estaba sentado a horca-",
+    "jadas en la ventana, con una pierna colgando en ",
+    "el interior de la habita-",
+    "ción.",
+    "Shasta no se había vis-",
+    "to nunca el rostro en ",
+    "un espejo, y aunque ",
+    "lo hubiera hecho, po-",
+    "dría no haberse da-",
+    "do cuenta de que, en ",
+    "condiciones norma-",
+    "les, el otro mucha-",
+    "cho debía de ser casi ",
+    "idéntico a él. En aquel "
+  ],
+  "images": [
+    {
+      "imageId": "image-001",
+      "description": "El príncipe Corin entra por la ventana y sorprende a Shasta, quien descubre que el muchacho tiene un rostro idéntico al suyo."
+    }
+  ]
+}

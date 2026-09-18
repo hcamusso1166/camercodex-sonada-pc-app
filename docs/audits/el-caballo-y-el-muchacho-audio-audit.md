@@ -1232,3 +1232,7 @@ Publicación bloqueada: tanto git add como git commit no pueden crear `.git/inde
 - Requiere fuente adicional: texto exacto y segmentado de cada renglón para sayLines, descripciones verificadas de imágenes, límites editoriales y páginas sin audio fuera del rango físico, metadatos bibliográficos aprobados si se necesitan. No se infiere ISBN. No se reconstruye texto escuchando los MP3.
 - Los duplicados binarios, si existen en el inventario, requieren confirmar si son reutilizaciones intencionales o errores antes de materializar el contrato. No se borró ni renombró ningún audio. Los huecos, variantes incompletas, archivos vacíos y patrones inesperados quedan detallados arriba; si sus listas están vacías no se detectó esa anomalía física.
 - La verificación de identidad/publicación remota quedó pendiente por los errores de infraestructura descritos en el precheck. Fase 1 se detiene con la auditoría; no modifica índices, manifests, páginas, runtime, tests, BLE, offline ni libros 01/02, y no crea PR.
+
+## Nota posterior de publicación — 2026-09-18
+
+El informe fue finalmente publicado manualmente en el commit `89d5557ab0785c4bd0ffd65168a7b9affb316cc4` (`Document Book 03 audio audit`), presente en la rama contractual. Los bloqueos de permisos/TLS descritos arriba corresponden al primer intento y se conservan como antecedente histórico.

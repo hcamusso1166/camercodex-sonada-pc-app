@@ -1,0 +1,17 @@
+{
+  "page": 14,
+  "bookId": "el-caballo-y-el-muchacho",
+  "lineCount": 4,
+  "sayLines": [
+    "za. Su rostro era oscuro, pero eso no sorprendió ",
+    "a Shasta porque el de todos los habitantes de ",
+    "Calormen lo era; lo que sí lo sorprendió fue la bar-",
+    "ba del desconocido, que estaba teñida de color "
+  ],
+  "images": [
+    {
+      "imageId": "image-001",
+      "description": "Un jinete sobre su caballo, dos hombres arrodillados a la derecha. Objetos esparcidos en el suelo."
+    }
+  ]
+}

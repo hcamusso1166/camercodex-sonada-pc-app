@@ -1,0 +1,27 @@
+{
+  "page": 130,
+  "bookId": "el-caballo-y-el-muchacho",
+  "lineCount": 14,
+  "sayLines": [
+    "de mis alocadas bromas. Empiezan a conocerme ",
+    "bastante bien. El otro día, por ejemplo… escucha, ",
+    "querida, es divertidísimo…",
+    "—Quería decir que todo se echaría a perder ",
+    "para «mí» —indicó Aravis con cierta aspereza.",
+    "—Oh… ah… sí… realmente comprendo a lo que ",
+    "te refieres, querida. Bueno, ¿se te ocurre un plan ",
+    "mejor?",
+    "A Aravis no se le ocurría, y respondió:",
+    "—No; tendremos que arriesgarnos con éste. ",
+    "¿Cuándo podemos ponerlo en práctica?",
+    "—Bueno, esta noche no —respondió su amiga—. ",
+    "Hay una gran fiesta, para la que por cierto tengo ",
+    "que empezar a peinarme dentro de unos minutos, "
+  ],
+  "images": [
+    {
+      "imageId": "image-001",
+      "description": "Aravis y Lasaraleen conversan sentadas entre almohadones en una lujosa habitación de Tashbaan."
+    }
+  ]
+}

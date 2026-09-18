@@ -369,3 +369,37 @@ test('non-book Range request preserves current-cache then network fallback', asy
   assert.deepEqual(current.putCalls, [pathName]);
   assert.equal(calls.fetch.length, 1);
 });
+
+test('cold-start libro 03 obtiene índice general y assets dedicados, sin tocar cachés 01/02', async () => {
+  const id = 'el-caballo-y-el-muchacho';
+  const dedicatedName = `camer-codex-bti-offline-v1-${id}`;
+  const urls = [
+    `/books/${id}/runtime-manifest.json`,
+    `/books/${id}/audios/_meta/title.mp3`,
+    `/books/${id}/audios/page-011/line-001_p1.mp3`,
+    `/books/${id}/audios/page-014/images/image-001_p3.mp3`,
+  ];
+  const current = createCache({ [BOOKS_INDEX_PATH]: new Response('books index'), ...Object.fromEntries(urls.map(url => [url, new Response('stale general')])) });
+  const dedicated = createCache(Object.fromEntries(urls.map(url => [url, new Response('book03 dedicated')])));
+  const first = createCache();
+  const second = createCache();
+  const { listeners, cacheMap, calls } = loadServiceWorker({ cacheEntries: {
+    [CACHE_NAME]: current,
+    [dedicatedName]: dedicated,
+    'camer-codex-bti-offline-v1-narnia-el-sobrino-del-mago': first,
+    'camer-codex-bti-offline-v1-narnia-el-leon-la-bruja-y-el-armario': second,
+  }, fetchImpl: async () => { throw new Error('cold-start must work without network'); } });
+  await dispatchActivate(listeners);
+  assert.equal(cacheMap.get(dedicatedName), dedicated);
+  assert.equal(await (await dispatchFetch(listeners, new Request(`${APP_ORIGIN}${BOOKS_INDEX_PATH}`))).text(), 'books index');
+  for (const url of urls) {
+    assert.equal(await (await dispatchFetch(listeners, new Request(`${APP_ORIGIN}${url}`))).text(), 'book03 dedicated');
+  }
+  assert.deepEqual(current.matchCalls, [BOOKS_INDEX_PATH]);
+  assert.deepEqual(current.putCalls, []);
+  assert.deepEqual(dedicated.matchCalls, urls);
+  assert.deepEqual(first.matchCalls, []);
+  assert.deepEqual(second.matchCalls, []);
+  assert.equal(calls.fetch.length, 0);
+  assert.deepEqual(calls.deleted, []);
+});
