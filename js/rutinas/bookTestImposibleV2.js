@@ -18,13 +18,14 @@ const BTI_V2_DETECTOR_COMMANDS = Object.freeze({
 const BTI_V2_PHASES = Object.freeze({
   DETECCION: "DETECCION",
   RESOLUCION: "RESOLUCION",
+  WAITING_GATE_FOR_RESOLUTION_REPEAT: "WAITING_GATE_FOR_RESOLUTION_REPEAT",
+  PLAYING_RESOLUTION_REPEAT: "PLAYING_RESOLUTION_REPEAT",
   WAITING_GATE_FOR_READING_TARGET_1: "WAITING_GATE_FOR_READING_TARGET_1",
   PLAYING_READING_TARGET_1: "PLAYING_READING_TARGET_1",
   WAITING_GATE_FOR_READING_TARGET_2: "WAITING_GATE_FOR_READING_TARGET_2",
   PLAYING_READING_TARGET_2: "PLAYING_READING_TARGET_2",
   WAITING_IMAGE_ENCORE_TRIGGER: "WAITING_IMAGE_ENCORE_TRIGGER",
-  IMAGE_ENCORE_RESOLVING: "IMAGE_ENCORE_RESOLVING",
-  IMAGE_ENCORE_PLAYING: "IMAGE_ENCORE_PLAYING",
+  IMAGE_ENCORE_NAVIGATION: "IMAGE_ENCORE_NAVIGATION",
   ROUTINE_FINISHED: "ROUTINE_FINISHED",
   WAITING_GATE_FOR_ENCORE_FINAL: "WAITING_GATE_FOR_ENCORE_FINAL",
   ENCORE_FINAL: "ENCORE_FINAL",
@@ -557,9 +558,9 @@ async function handleDetectionFinishGate() {
     renderDeviceStatuses();
     logInfo("[BTI_V2] Playing resolution audio: book/page/line once", "AUDIO");
     await playResolutionAudio(selection);
-    routineState.phase = BTI_V2_PHASES.WAITING_GATE_FOR_READING_TARGET_1;
-    logInfo("[BTI_V2] Waiting antenna 8 for reading target 1", "BLE");
-    updatePayloadStatus("Selección fijada. Esperando Antena 8 para reproducir el renglón elegido.", false);
+    routineState.phase = BTI_V2_PHASES.WAITING_GATE_FOR_RESOLUTION_REPEAT;
+    logInfo("[BTI_V2] Waiting antenna 8 for page/line resolution repeat", "BLE");
+    updatePayloadStatus("Selección fijada. Esperando Antena 8 para repetir página y renglón.", false);
     renderDeviceStatuses();
   } catch (error) {
     routineState.phase = BTI_V2_PHASES.ERROR;
@@ -576,6 +577,17 @@ if (routineState.phase === BTI_V2_PHASES.COMPLETE || routineState.phase === BTI_
   const selection = routineState.lockedSelection?.resolved;
   if (!selection) {
     updatePayloadStatus("No hay selección fijada para avanzar.", true);
+    return;
+  }
+  if (routineState.phase === BTI_V2_PHASES.WAITING_GATE_FOR_RESOLUTION_REPEAT) {
+    routineState.phase = BTI_V2_PHASES.PLAYING_RESOLUTION_REPEAT;
+    logInfo("[BTI_V2] Playing page/line resolution repeat once", "AUDIO");
+    renderDeviceStatuses();
+    await playResolutionPageLineRepeatAudio(selection);
+    routineState.phase = BTI_V2_PHASES.WAITING_GATE_FOR_READING_TARGET_1;
+    logInfo("[BTI_V2] Waiting antenna 8 for reading target 1", "BLE");
+    updatePayloadStatus("Esperando Antena 8 para reproducir el renglón elegido.", false);
+    renderDeviceStatuses();
     return;
   }
   if (routineState.phase === BTI_V2_PHASES.WAITING_GATE_FOR_READING_TARGET_1) {
@@ -611,8 +623,12 @@ if (routineState.phase === BTI_V2_PHASES.COMPLETE || routineState.phase === BTI_
     await startImageEncore(selection);
     return;
   }
-  if ([BTI_V2_PHASES.IMAGE_ENCORE_RESOLVING, BTI_V2_PHASES.IMAGE_ENCORE_PLAYING].includes(routineState.phase)) {
+  if (routineState.phase === BTI_V2_PHASES.IMAGE_ENCORE_NAVIGATION) {
     logInfo("[IMAGE-ENCORE] duplicate antenna 8 ignored", "BLE");
+    return;
+  }
+  if (routineState.phase === BTI_V2_PHASES.WAITING_GATE_FOR_ENCORE_FINAL) {
+    await startEncoreFinal();
     return;
   }
   logInfo(`[BTI_V2] Ignoring antenna 8 gate in phase ${routineState.phase}`, "BLE");
@@ -624,7 +640,7 @@ async function startImageEncore(selection) {
     return;
   }
   routineState.imageEncoreTriggerConsumed = true;
-  routineState.phase = BTI_V2_PHASES.IMAGE_ENCORE_RESOLVING;
+  routineState.phase = BTI_V2_PHASES.IMAGE_ENCORE_NAVIGATION;
   renderDeviceStatuses();
 
   const bookId = selection.book.bookId || selection.book.id;
@@ -649,16 +665,14 @@ async function startImageEncore(selection) {
       return;
     }
 
-    void sendImageEncoreShowSketch(result);
+    await sendImageEncoreShowSketch(result);
     logInfo(`[IMAGE-ENCORE] targetPage=${result.targetPage} imageId=${result.imageId}`, "BTI_V2");
     logInfo(`[IMAGE-ENCORE] pageDistance=${result.numberedPageDistance} turnCount=${result.turnCount} navigation=${result.navigationType}`, "BTI_V2");
-    routineState.phase = BTI_V2_PHASES.IMAGE_ENCORE_PLAYING;
-    renderDeviceStatuses();
     logInfo(`[IMAGE-ENCORE] triggerToPlayMs=${(performance.now() - triggerStartedAt).toFixed(2)}`, "BTI_V2");
-    await playImageEncoreAudio(result);
-    routineState.phase = BTI_V2_PHASES.ROUTINE_FINISHED;
-    logInfo("[IMAGE-ENCORE] complete", "BTI_V2");
-    updatePayloadStatus("ENCORE DE IMAGEN finalizado. Podés iniciar una nueva detección.", false);
+    await playImageEncoreNavigationAudio(result);
+    routineState.phase = BTI_V2_PHASES.WAITING_GATE_FOR_ENCORE_FINAL;
+    logInfo("[IMAGE-ENCORE] navigation complete; waiting antenna 8 for final encore", "BTI_V2");
+    updatePayloadStatus("Navegación completada. Esperando Antena 8 para el Encore Final.", false);
     renderDeviceStatuses();
   } catch (error) {
     routineState.phase = BTI_V2_PHASES.ERROR;
@@ -666,6 +680,22 @@ async function startImageEncore(selection) {
     logError(error.message, "BTI_V2");
     renderDeviceStatuses();
   }
+}
+
+async function startEncoreFinal() {
+  const result = routineState.imageEncore;
+  if (!result?.found) {
+    routineState.phase = BTI_V2_PHASES.ROUTINE_FINISHED;
+    return;
+  }
+  routineState.phase = BTI_V2_PHASES.ENCORE_FINAL;
+  renderDeviceStatuses();
+  logInfo("[IMAGE-ENCORE] Playing final sketch description", "AUDIO");
+  await playImageEncoreAudio(result);
+  routineState.phase = BTI_V2_PHASES.ROUTINE_FINISHED;
+  logInfo("[IMAGE-ENCORE] complete", "BTI_V2");
+  updatePayloadStatus("ENCORE DE IMAGEN finalizado. Podés iniciar una nueva detección.", false);
+  renderDeviceStatuses();
 }
 
 async function sendImageEncoreShowSketch(result) {
@@ -737,6 +767,11 @@ async function playImageEncoreAudio(result) {
   await playQueueItems(queue, "No hay audios disponibles para la imagen del Encore.");
 }
 
+async function playImageEncoreNavigationAudio(result) {
+  const queue = showAudio?.buildImageEncoreNavigationQueue?.(result) || [];
+  await playQueueItems(queue, "No hay audios disponibles para la navegación del Encore.");
+}
+
 function renderImageEncore(result) {
   if (!ui.resolvedContextList) return;
   const header = document.createElement("li");
@@ -775,6 +810,11 @@ function buildResolutionQueue(selection) {
   return showAudio.buildResolutionBookPageLineOnceQueue(context);
 }
 
+function buildResolutionPageLineRepeatQueue(selection) {
+  const context = showAudio.resolveReadingContext(selection.book.bookId, selection.pageNumber, selection.lineNumber);
+  return showAudio.buildResolutionPageLineRepeatQueue(context);
+}
+
 async function playQueueItems(queue, emptyMessage = "No hay audios disponibles para reproducir.") {
   if (!queue.length) {
     updatePayloadStatus(emptyMessage, true);
@@ -786,6 +826,10 @@ async function playQueueItems(queue, emptyMessage = "No hay audios disponibles p
 
 async function playResolutionAudio(selection) {
   await playQueueItems(buildResolutionQueue(selection), "No hay audios disponibles para el anuncio libro/página/renglón.");
+}
+
+async function playResolutionPageLineRepeatAudio(selection) {
+  await playQueueItems(buildResolutionPageLineRepeatQueue(selection), "No hay audios disponibles para repetir página/renglón.");
 }
 
 async function playReadingTarget(selection, targetIndex) {
@@ -1236,13 +1280,14 @@ function renderPhaseStatus() {
   const labels = {
     [BTI_V2_PHASES.DETECCION]: "Detección",
     [BTI_V2_PHASES.RESOLUCION]: "Resolución",
+    [BTI_V2_PHASES.WAITING_GATE_FOR_RESOLUTION_REPEAT]: "Esperando repetición de página/renglón",
+    [BTI_V2_PHASES.PLAYING_RESOLUTION_REPEAT]: "Repitiendo página/renglón",
     [BTI_V2_PHASES.WAITING_GATE_FOR_READING_TARGET_1]: "Esperando avance",
     [BTI_V2_PHASES.PLAYING_READING_TARGET_1]: "Reproduciendo",
     [BTI_V2_PHASES.WAITING_GATE_FOR_READING_TARGET_2]: "Esperando avance",
     [BTI_V2_PHASES.PLAYING_READING_TARGET_2]: "Reproduciendo",
     [BTI_V2_PHASES.WAITING_IMAGE_ENCORE_TRIGGER]: "Esperando Encore de imagen",
-    [BTI_V2_PHASES.IMAGE_ENCORE_RESOLVING]: "Resolviendo Encore de imagen",
-    [BTI_V2_PHASES.IMAGE_ENCORE_PLAYING]: "Encore de imagen",
+    [BTI_V2_PHASES.IMAGE_ENCORE_NAVIGATION]: "Navegación del Encore de imagen",
     [BTI_V2_PHASES.ROUTINE_FINISHED]: "Finalizado",
     [BTI_V2_PHASES.WAITING_GATE_FOR_ENCORE_FINAL]: "Esperando avance",
     [BTI_V2_PHASES.ENCORE_FINAL]: "Encore Final",
@@ -1407,6 +1452,7 @@ window.resetBtiV2FlowForNewDetection = resetBtiV2FlowForNewDetection;
 window.setBookTestImposibleV2DeviceState = setBookTestImposibleV2DeviceState;
 
 window.bookTestImposibleV2Dev = {
+  bindUiElements,
   buildReadingStatusItems,
   formatReadingStatusItem,
   resolveBookByDeviceCode,
@@ -1426,7 +1472,10 @@ window.bookTestImposibleV2Dev = {
   resetBtiV2FlowForNewDetection,
   shouldAcceptAntenna8Gate,
   startImageEncore,
+  startEncoreFinal,
+  handleAntenna8Gate,
   sendImageEncoreShowSketch,
   sendBtiV2DetectorCommand,
+  setShowAudioForTests: value => { showAudio = value; },
   getRoutineState: () => routineState,
 };

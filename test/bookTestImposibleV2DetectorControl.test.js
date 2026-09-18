@@ -44,6 +44,8 @@ async function loadRoutine() {
     enqueueAuxiliaryQueue() {}
     resolveReadingContext() { return {}; }
     buildResolutionBookPageLineOnceQueue() { return []; }
+    buildResolutionPageLineRepeatQueue() { return []; }
+    buildImageEncoreNavigationQueue() { return []; }
     setQueue(queue) { this.lastPlayableQueue = queue; }
     async playQueue() { this.status = 'completed'; }
     stop() {}
@@ -114,6 +116,7 @@ test('complete payloads do not PAUSE until the first Siguiente Audio freeze', as
   await dev.tryLockAndStartShow();
   await flushWrites();
   assert.equal(state.selectionLocked, true);
+  assert.equal(state.phase, 'WAITING_GATE_FOR_RESOLUTION_REPEAT');
   assert.deepEqual(writes, [
     ['bookDevice', [0x43, 0x41, 0x01, 0x00]],
     ['q5Device', [0x43, 0x41, 0x01, 0x00]],

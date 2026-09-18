@@ -24,6 +24,12 @@ function loadRoutine({ sendShowSketchToQ5 } = {}) {
       buildImageAudioQueue() { return []; },
     },
   };
+  window.BookTestImposibleV2ShowAudio = class {
+    constructor() { this.status = 'idle'; }
+    buildImageEncoreNavigationQueue() { return []; }
+    setQueue() {}
+    async playQueue() { this.status = 'completed'; }
+  };
   vm.runInNewContext(routineSource, {
     window,
     document,
@@ -115,7 +121,7 @@ test('found:false sends no SHOW_SKETCH request', async () => {
   assert.equal(sends.length, 0);
 });
 
-test('SHOW_SKETCH failure is logged without retry and Image Encore completes', async () => {
+test('SHOW_SKETCH failure is logged without retry and navigation still reaches the final gate', async () => {
   let attempts = 0;
   const dev = loadRoutine({
     sendShowSketchToQ5: async () => {
@@ -128,9 +134,9 @@ test('SHOW_SKETCH failure is logged without retry and Image Encore completes', a
   await dev.startImageEncore(selection());
 
   assert.equal(attempts, 1);
-  assert.equal(state.phase, 'ROUTINE_FINISHED');
+  assert.equal(state.phase, 'WAITING_GATE_FOR_ENCORE_FINAL');
   assert.equal(state.logs.some(line => line.includes('[SHOW_SKETCH]') && line.includes('Q5 disconnected')), true);
-  assert.equal(state.logs.some(line => line.includes('[IMAGE-ENCORE] complete')), true);
+  assert.equal(state.logs.some(line => line.includes('navigation complete')), true);
 });
 
 test('reading target UX avanza ready/ready, read/ready, read/read', () => {
