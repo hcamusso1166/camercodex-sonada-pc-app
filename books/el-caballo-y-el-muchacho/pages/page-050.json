@@ -1,0 +1,18 @@
+{
+  "page": 50,
+  "bookId": "el-caballo-y-el-muchacho",
+  "lineCount": 5,
+  "sayLines": [
+    "mo modo que a los chicos y chicas de nuestro ",
+    "mundo se les enseña a escribir redacciones. La ",
+    "diferencia es que a la gente le gusta escuchar los ",
+    "relatos, mientras que nunca he sabido de nadie ",
+    "que quisiera leer las redacciones."
+  ],
+  "images": [
+    {
+      "imageId": "image-001",
+      "description": "Aravis, con casco puntiagudo relata una historia. Armaduras, armas y huesos esparcidos a su alrededor."
+    }
+  ]
+}

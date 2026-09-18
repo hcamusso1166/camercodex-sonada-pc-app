@@ -1,0 +1,31 @@
+{
+  "page": 97,
+  "bookId": "el-caballo-y-el-muchacho",
+  "lineCount": 18,
+  "sayLines": [
+    "se sentó sobre el suelo alfombrado con las patas ",
+    "de cabra cruzadas.",
+    "—Ahora, principito —dijo—. Comed bien. Será ",
+    "vuestra última comida en Tashbaan.",
+    "Fue una comida magnífica al estilo de Calor-",
+    "men. No sé si a ti te habría gustado o no, pero a ",
+    "Shasta le gustó. Había langostas, ensalada, aga-",
+    "chadiza rellena de almendras y trufas, un comple-",
+    "jo plato realizado con hígados de pollo, arroz, ",
+    "pasas y nueces, y había melones fríos y dulces de ",
+    "grosellas y también de moras, y toda clase de cosas ",
+    "agradables que puedan hacerse con helado. ",
+    "También había una pequeña jarra de vino del que ",
+    "llaman «blanco», aunque en realidad sea amarillo.",
+    "Mientras Shasta comía, el buen fauno, que pen-",
+    "saba que el muchacho estaba todavía aturdido ",
+    "por una insolación, no dejó de hablarle sobre lo ",
+    "bien que iría todo cuando hubieran regresado a "
+  ],
+  "images": [
+    {
+      "imageId": "image-001",
+      "description": "Abundancia del banquete con el ave asada, langosta, panes, frutas, fuentes y jarra."
+    }
+  ]
+}

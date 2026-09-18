@@ -1,0 +1,30 @@
+{
+  "page": 221,
+  "bookId": "el-caballo-y-el-muchacho",
+  "lineCount": 17,
+  "sayLines": [
+    "Corin se dirigía corriendo a Shasta y le tomaba las ",
+    "manos, gritando:",
+    "—¡Vaya! ¡Estás aquí! ¿De modo que conseguiste ",
+    "salir sin problemas? Me alegro. Ahora nos diverti-",
+    "remos. ¿No es eso tener suerte? Apenas llegamos ",
+    "al puerto de Cair Paravel ayer por la mañana y la ",
+    "primera persona que viene a nuestro encuentro es ",
+    "el ciervo *Chervy* con esa noticia de un ataque a ",
+    "Anvard. No crees…",
+    "—¿Quién es el amigo de su alteza? —preguntó ",
+    "el rey Edmund, que acababa de desmontar.",
+    "—¿No lo veis, majestad? —dijo Corin—. Es mi ",
+    "doble: el chico al que confundisteis conmigo en ",
+    "Tashbaan.",
+    "—Vaya, ya lo creo que es su doble —exclamó la ",
+    "reina Lucy—. Son tan iguales como dos gemelos. ",
+    "Es maravilloso."
+  ],
+  "images": [
+    {
+      "imageId": "image-001",
+      "description": " Edmund portando un gran estandarte, seguido muy de cerca por los demás jinetes y un felino parlante."
+    }
+  ]
+}

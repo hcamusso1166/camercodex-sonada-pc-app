@@ -21,6 +21,16 @@
       "isbn": "978-950-732-098-9",
       "language": "es",
       "runtimeManifest": "runtime-manifest.json"
+    },
+    {
+      "bookId": "el-caballo-y-el-muchacho",
+      "tag": "03",
+      "title": "El caballo y el muchacho",
+      "author": "C. S. Lewis",
+      "root": "books/el-caballo-y-el-muchacho",
+      "collection": "Las crónicas de Narnia",
+      "language": "es",
+      "runtimeManifest": "runtime-manifest.json"
     }
   ]
 }
