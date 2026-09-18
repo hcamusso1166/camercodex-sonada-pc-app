@@ -1,4 +1,4 @@
-const CACHE_NAME = 'camer-codex-cache-v19';
+const CACHE_NAME = 'camer-codex-cache-v20';
 const BTI_OFFLINE_CACHE_PREFIX = 'camer-codex-bti-offline-v1-';
 const MANIFEST_URL = '/cache-files.json';
 const BOOKS_INDEX_PATH = '/books/index.json';
