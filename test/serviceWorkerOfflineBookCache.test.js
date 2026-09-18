@@ -9,7 +9,7 @@ const SERVICE_WORKER_SOURCE = fs.readFileSync(SERVICE_WORKER_PATH, 'utf8');
 const CACHE_FILES_PATH = path.join(__dirname, '..', 'cache-files.json');
 const CACHE_FILES = JSON.parse(fs.readFileSync(CACHE_FILES_PATH, 'utf8'));
 const APP_ORIGIN = 'https://app.example';
-const CACHE_NAME = 'camer-codex-cache-v18';
+const CACHE_NAME = 'camer-codex-cache-v19';
 const BOOKS_INDEX_PATH = '/books/index.json';
 const BOOK_ID = 'narnia-el-sobrino-del-mago';
 const OFFLINE_CACHE_NAME = `camer-codex-bti-offline-v1-${BOOK_ID}`;
@@ -26,7 +26,7 @@ const BTI_RESOLUTION_AUDIO_PATHS = [
 ];
 const BTI_MISSING_SLOT_AUDIO_PATH = '/audios/audios_especiales/slot.mp3';
 
-function createCache(initialEntries = {}) {
+function createCache(initialEntries = {}, fetchImpl) {
   const entries = new Map(Object.entries(initialEntries));
   return {
     matchCalls: [],
@@ -42,6 +42,7 @@ function createCache(initialEntries = {}) {
     },
     async add(key) {
       this.addCalls.push(key);
+      if (fetchImpl) entries.set(key, await fetchImpl(key));
     }
   };
 }
@@ -58,7 +59,7 @@ function loadServiceWorker({ cacheEntries = {}, fetchImpl } = {}) {
     },
     async open(name) {
       calls.opened.push(name);
-      if (!cacheMap.has(name)) cacheMap.set(name, createCache());
+      if (!cacheMap.has(name)) cacheMap.set(name, createCache({}, mockedFetch));
       return cacheMap.get(name);
     },
     async delete(name) {
@@ -402,4 +403,43 @@ test('cold-start libro 03 obtiene índice general y assets dedicados, sin tocar 
   assert.deepEqual(second.matchCalls, []);
   assert.equal(calls.fetch.length, 0);
   assert.deepEqual(calls.deleted, []);
+});
+
+test('actualización v18→v19 precarga un índice nuevo y preserva las tres cachés BTI', async () => {
+  const oldName = 'camer-codex-cache-v18';
+  const bookIds = [
+    'narnia-el-sobrino-del-mago',
+    'narnia-el-leon-la-bruja-y-el-armario',
+    'el-caballo-y-el-muchacho',
+  ];
+  const oldIndex = { books: bookIds.slice(0, 2).map(bookId => ({ bookId })) };
+  const newIndex = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'books', 'index.json'), 'utf8'));
+  const oldCache = createCache({ [BOOKS_INDEX_PATH]: new Response(JSON.stringify(oldIndex)) });
+  const dedicated = Object.fromEntries(bookIds.map(bookId => [
+    `camer-codex-bti-offline-v1-${bookId}`, createCache({ '/existing-asset': new Response(bookId) }),
+  ]));
+  const { listeners, cacheMap, calls } = loadServiceWorker({
+    cacheEntries: { [oldName]: oldCache, ...dedicated },
+    fetchImpl: async input => {
+      if (input === '/cache-files.json') return new Response(JSON.stringify([BOOKS_INDEX_PATH]));
+      if (input === BOOKS_INDEX_PATH) return new Response(JSON.stringify(newIndex));
+      throw new Error(`Solicitud inesperada: ${input}`);
+    },
+  });
+  assert.equal(cacheMap.has(CACHE_NAME), false);
+  await dispatchInstall(listeners);
+  assert.deepEqual(calls.opened, ['camer-codex-cache-v19']);
+  const fresh = cacheMap.get('camer-codex-cache-v19');
+  assert.deepEqual(fresh.addCalls, [BOOKS_INDEX_PATH]);
+  assert.deepEqual(calls.fetch.map(args => args[0]), ['/cache-files.json', BOOKS_INDEX_PATH]);
+  assert.deepEqual(oldCache.matchCalls, []);
+  assert.deepEqual(oldCache.addCalls, []);
+  await dispatchActivate(listeners);
+  assert.deepEqual(calls.deleted, [oldName]);
+  assert.equal(cacheMap.has(oldName), false);
+  assert.equal(cacheMap.get(CACHE_NAME), fresh);
+  for (const [name, cache] of Object.entries(dedicated)) assert.equal(cacheMap.get(name), cache);
+  const response = await dispatchFetch(listeners, new Request(`${APP_ORIGIN}${BOOKS_INDEX_PATH}`));
+  assert.deepEqual((await response.json()).books.map(book => book.bookId), bookIds);
+  assert.equal(calls.fetch.length, 2);
 });
