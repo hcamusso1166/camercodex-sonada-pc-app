@@ -644,7 +644,7 @@ async function startImageEncore(selection) {
   renderDeviceStatuses();
 
   const bookId = selection.book.bookId || selection.book.id;
-  const sourcePage = selection.pageNumber;
+  const sourcePage = resolveImageEncoreSourcePage(selection);
   logInfo("[IMAGE-ENCORE] trigger accepted antenna=8", "BLE");
   logInfo(`[IMAGE-ENCORE] book=${bookId} sourcePage=${sourcePage}`, "BTI_V2");
 
@@ -724,10 +724,18 @@ function clearPreparedImageEncore() {
   routineState.preparedImageAudioPath = null;
 }
 
+function resolveImageEncoreSourcePage(selection) {
+  const finalReadingTargetPage = Number(selection?.readingPlan?.targets?.[1]?.pageNumber);
+  if (Number.isInteger(finalReadingTargetPage) && finalReadingTargetPage > 0) {
+    return finalReadingTargetPage;
+  }
+  return Number(selection?.pageNumber);
+}
+
   function prepareImageEncore(selection) {
   clearPreparedImageEncore();
   const bookId = selection?.book?.bookId || selection?.book?.id;
-  const sourcePage = Number(selection?.pageNumber);
+  const sourcePage = resolveImageEncoreSourcePage(selection);
   const startedAt = performance.now();
   logInfo(`[IMAGE-ENCORE] preparing book=${bookId} sourcePage=${sourcePage}`, "BTI_V2");
   const result = window.BookTestImposibleV2ImageEncore.resolveManifestBookImage({
@@ -1461,6 +1469,7 @@ window.bookTestImposibleV2Dev = {
   resolveImageNavigation: (...args) => window.BookTestImposibleV2ImageEncore.resolveImageNavigation(...args),
   buildImageAudioPath: (...args) => window.BookTestImposibleV2ImageEncore.buildImageAudioPath(...args),
   prepareImageEncore,
+  resolveImageEncoreSourcePage,
   clearPreparedImageEncore,
   buildImageTakeCandidates,
   resolveLocalImageTakes,
