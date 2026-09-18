@@ -50,3 +50,45 @@ test('el audio de detección anuncia el número sin solicitar audio slot', () =>
   assert.deepEqual(Array.from(sources), ['../audios/suma/3.mp3']);
   assert.equal(sources.some(src => src.endsWith('/slot.mp3')), false);
 });
+
+test('la repetición de resolución anuncia sólo página y renglón', () => {
+  const context = audio.resolveReadingContext('future-book', 230, 17);
+  const sources = audio.buildResolutionPageLineRepeatQueue(context)
+    .filter(item => item.type === 'audio')
+    .map(item => item.src);
+
+  assert.deepEqual(Array.from(sources), [
+    '../audios/audios_especiales/pagina.mp3',
+    '../audios/suma/200.mp3',
+    '../audios/suma/30.mp3',
+    '../audios/audios_especiales/renglon.mp3',
+    '../audios/suma/10.mp3',
+    '../audios/suma/y7.mp3',
+  ]);
+  assert.equal(sources.some(src => src.endsWith('/title.mp3')), false);
+});
+
+test('las cuatro navegaciones de Encore usan assets contractuales y secuencias numéricas compartidas', () => {
+  const sources = navigationType => Array.from(audio.buildImageEncoreNavigationQueue({
+    found: true,
+    navigationType,
+    targetPage: 230,
+    turnCount: 3,
+  }).filter(item => item.type === 'audio').map(item => item.src));
+
+  assert.deepEqual(sources('SAME_PAGE'), [
+    '../audios/audios_especiales/encore_misma_pagina.mp3',
+    '../audios/audios_especiales/encore_la_imagen_esta_en_la_pagina.mp3',
+    '../audios/suma/200.mp3', '../audios/suma/30.mp3',
+  ]);
+  assert.equal(sources('FACING_PAGE')[0], '../audios/audios_especiales/encore_mira_pagina_contigua.mp3');
+  assert.equal(sources('TURN_ONE_PAGE')[0], '../audios/audios_especiales/encore_avanza_una_vuelta_de_pagina.mp3');
+  assert.deepEqual(sources('TURN_MULTIPLE_PAGES'), [
+    '../audios/audios_especiales/encore_avanza.mp3',
+    '../audios/suma/3.mp3',
+    '../audios/audios_especiales/encore_vueltas_de_pagina.mp3',
+    '../audios/audios_especiales/encore_la_imagen_esta_en_la_pagina.mp3',
+    '../audios/suma/200.mp3', '../audios/suma/30.mp3',
+  ]);
+  assert.deepEqual(Array.from(audio.buildImageEncoreNavigationQueue({ found: false, navigationType: 'NO_IMAGE_FOUND' })), []);
+});

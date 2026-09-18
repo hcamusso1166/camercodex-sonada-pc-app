@@ -341,6 +341,51 @@
       ];
     }
 
+    buildResolutionPageLineRepeatQueue(context) {
+      const pageSlug = this.pad3(context.pageNumber);
+      const lineSlug = this.pad3(context.playbackLineNumber);
+      const lineAnnouncement = this.buildLineAnnouncement(context);
+      return [
+        { type: "audio", src: "../audios/audios_especiales/pagina.mp3", label: "[BTI_V2] Resolution repeat -> Página" },
+        ...this.buildAudioItemsFromSources(this.buildNumberAudioSequence(context.pageNumber), `resolution-repeat:page:${pageSlug}`),
+        { type: "pause", ms: 350, label: "pause:resolution-repeat-page-line" },
+        { type: "audio", src: "../audios/audios_especiales/renglon.mp3", label: "[BTI_V2] Resolution repeat -> Renglón" },
+        ...this.buildAudioItemsFromSources(lineAnnouncement.sources, `resolution-repeat:line:${lineSlug}`),
+      ];
+    }
+
+    buildImageEncoreNavigationQueue(result) {
+      if (!result?.found) return [];
+      const special = name => `../audios/audios_especiales/${name}.mp3`;
+      const targetPage = this.buildAudioItemsFromSources(
+        this.buildNumberAudioSequence(result.targetPage),
+        `image-encore-navigation:target-page:${result.targetPage}`
+      );
+      const pageLocation = [
+        { type: "audio", src: special("encore_la_imagen_esta_en_la_pagina"), label: "[IMAGE-ENCORE] Navigation -> image page" },
+        ...targetPage,
+      ];
+
+      if (result.navigationType === "SAME_PAGE") {
+        return [{ type: "audio", src: special("encore_misma_pagina"), label: "[IMAGE-ENCORE] Navigation -> same page" }, ...pageLocation];
+      }
+      if (result.navigationType === "FACING_PAGE") {
+        return [{ type: "audio", src: special("encore_mira_pagina_contigua"), label: "[IMAGE-ENCORE] Navigation -> facing page" }, ...pageLocation];
+      }
+      if (result.navigationType === "TURN_ONE_PAGE") {
+        return [{ type: "audio", src: special("encore_avanza_una_vuelta_de_pagina"), label: "[IMAGE-ENCORE] Navigation -> turn one page" }, ...pageLocation];
+      }
+      if (result.navigationType === "TURN_MULTIPLE_PAGES") {
+        return [
+          { type: "audio", src: special("encore_avanza"), label: "[IMAGE-ENCORE] Navigation -> advance" },
+          ...this.buildAudioItemsFromSources(this.buildNumberAudioSequence(result.turnCount), `image-encore-navigation:turn-count:${result.turnCount}`),
+          { type: "audio", src: special("encore_vueltas_de_pagina"), label: "[IMAGE-ENCORE] Navigation -> page turns" },
+          ...pageLocation,
+        ];
+      }
+      return [];
+    }
+
     buildPostShowQueue(context) {
       const pageSlug = this.pad3(context.pageNumber);
       const lineSlug = this.pad3(context.playbackLineNumber);

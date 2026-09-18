@@ -347,5 +347,11 @@
   "/books/narnia-el-sobrino-del-mago/runtime-manifest.json",
   "/js/showSketchWireV1.js",
   "/js/showSketchServiceV1.js",
-  "/js/showSketchBleTransportV1.js"
+  "/js/showSketchBleTransportV1.js",
+  "/audios/audios_especiales/encore_avanza.mp3",
+  "/audios/audios_especiales/encore_avanza_una_vuelta_de_pagina.mp3",
+  "/audios/audios_especiales/encore_la_imagen_esta_en_la_pagina.mp3",
+  "/audios/audios_especiales/encore_mira_pagina_contigua.mp3",
+  "/audios/audios_especiales/encore_misma_pagina.mp3",
+  "/audios/audios_especiales/encore_vueltas_de_pagina.mp3"
 ]

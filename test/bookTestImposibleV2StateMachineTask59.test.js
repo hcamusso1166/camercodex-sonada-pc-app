@@ -1,0 +1,143 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const imageEncore = require('../js/rutinas/bookTestImposibleV2ImageEncore.js');
+
+const routineSource = fs.readFileSync(path.join(__dirname, '../js/rutinas/bookTestImposibleV2.js'), 'utf8');
+
+function loadRoutine() {
+  const sends = [];
+  const elements = new Map();
+  const element = id => {
+    if (!elements.has(id)) elements.set(id, {
+      textContent: '', innerHTML: '', style: {}, appendChild() {},
+      classList: { toggle() {} }, toggleAttribute() {}, removeAttribute() {}, addEventListener() {},
+    });
+    return elements.get(id);
+  };
+  const document = {
+    readyState: 'loading', addEventListener() {}, getElementById(id) { return element(id); },
+    createElement() { return { style: {}, appendChild() {} }; },
+  };
+  const window = {
+    sendShowSketchToQ5: async request => sends.push(request),
+    BookTestImposibleV2ImageEncore: imageEncore,
+    BookTestImposibleV2RuntimeManifest: { resolveReadingPartCount: () => 1 },
+  };
+  vm.runInNewContext(routineSource, {
+    window, document, console, performance: { now: () => 1 }, Date, Error, String, Number,
+    Object, Array, Set, Map, JSON, Math, RegExp, Promise, Uint8Array,
+    fetch: async () => ({ ok: true, json: async () => [] }),
+  }, { filename: 'bookTestImposibleV2.js' });
+  window.bookTestImposibleV2Dev.bindUiElements();
+  return { dev: window.bookTestImposibleV2Dev, sends };
+}
+
+function createAudioHarness() {
+  const played = [];
+  let navigationRelease = null;
+  const audio = {
+    status: 'idle',
+    resolveReadingContext(bookId, pageNumber, lineNumber) {
+      return { bookId, pageNumber, playbackLineNumber: lineNumber, partCount: 1 };
+    },
+    buildResolutionPageLineRepeatQueue() {
+      return [{ type: 'audio', src: '../audios/audios_especiales/pagina.mp3' }, { type: 'audio', src: '../audios/audios_especiales/renglon.mp3' }];
+    },
+    getClassicTakeUrls(context) { return { p1: `line-${context.playbackLineNumber}.mp3` }; },
+    playClassicReadingTwoTakes(context, takes) {
+      return [{ type: 'audio', src: takes.p1 }, { type: 'audio', src: takes.p1 }];
+    },
+    buildImageEncoreNavigationQueue() { return [{ type: 'audio', src: 'encore_avanza.mp3' }]; },
+    setQueue(queue) { this.queue = queue; played.push(queue.map(item => item.src).filter(Boolean)); },
+    async playQueue() {
+      if (this.queue.some(item => item.src === 'encore_avanza.mp3')) {
+        await new Promise(resolve => { navigationRelease = resolve; });
+      }
+      this.status = 'completed';
+    },
+    stop() {}, clearPreloaded() {},
+  };
+  return { audio, played, releaseNavigation: () => navigationRelease() };
+}
+
+function selectedRoutine() {
+  const book = { bookId: 'book-1' };
+  return {
+    book, pageNumber: 225, lineNumber: 7,
+    runtimeManifest: { images: [{ page: 230, imageId: 'image-001' }] },
+    readingPlan: { targets: [{ pageNumber: 225, lineNumber: 7 }, { pageNumber: 225, lineNumber: 8 }] },
+  };
+}
+
+test('Task 59 recorre repetición, lecturas, navegación y Encore Final con un solo SHOW_SKETCH', async () => {
+  const { dev, sends } = loadRoutine();
+  const harness = createAudioHarness();
+  dev.setShowAudioForTests(harness.audio);
+  const selection = selectedRoutine();
+  const state = dev.getRoutineState();
+  state.selectionLocked = true;
+  state.lockedSelection = { resolved: selection };
+  state.phase = 'WAITING_GATE_FOR_RESOLUTION_REPEAT';
+  state.preparedImageEncore = imageEncore.resolveManifestBookImage({
+    bookId: 'book-1', sourcePage: 225, images: selection.runtimeManifest.images,
+  });
+
+  await dev.handleAntenna8Gate();
+  assert.equal(state.phase, 'WAITING_GATE_FOR_READING_TARGET_1');
+  assert.deepEqual(harness.played[0], ['../audios/audios_especiales/pagina.mp3', '../audios/audios_especiales/renglon.mp3']);
+
+  await dev.handleAntenna8Gate();
+  assert.equal(state.phase, 'WAITING_GATE_FOR_READING_TARGET_2');
+  assert.deepEqual(harness.played[1], ['line-7.mp3', 'line-7.mp3']);
+  await dev.handleAntenna8Gate();
+  assert.equal(state.phase, 'WAITING_IMAGE_ENCORE_TRIGGER');
+  assert.deepEqual(harness.played[2], ['line-8.mp3', 'line-8.mp3']);
+
+  const navigation = dev.handleAntenna8Gate();
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(state.phase, 'IMAGE_ENCORE_NAVIGATION');
+  assert.equal(sends.length, 1);
+  await dev.handleAntenna8Gate();
+  assert.equal(sends.length, 1);
+  assert.equal(state.phase, 'IMAGE_ENCORE_NAVIGATION');
+  harness.releaseNavigation();
+  await navigation;
+  assert.equal(state.phase, 'WAITING_GATE_FOR_ENCORE_FINAL');
+
+  await dev.handleAntenna8Gate();
+  assert.equal(state.phase, 'ROUTINE_FINISHED');
+  assert.equal(sends.length, 1);
+  assert.deepEqual(harness.played.at(-1), [
+    '../books/book-1/audios/page-230/images/image-001_p1.mp3',
+    '../books/book-1/audios/page-230/images/image-001_p2.mp3',
+    '../books/book-1/audios/page-230/images/image-001_p3.mp3',
+  ]);
+
+  dev.resetBtiV2FlowForNewDetection();
+  assert.equal(state.phase, 'DETECCION');
+  assert.equal(state.selectionLocked, false);
+  assert.equal(state.lockedSelection, null);
+  assert.equal(state.imageEncore, null);
+  assert.equal(state.preparedImageEncore, null);
+  assert.equal(state.preparedImageAudioPath, null);
+  assert.equal(state.imageEncoreTriggerConsumed, false);
+});
+
+test('NO_IMAGE_FOUND termina de forma controlada sin audio ni SHOW_SKETCH', async () => {
+  const { dev, sends } = loadRoutine();
+  const harness = createAudioHarness();
+  dev.setShowAudioForTests(harness.audio);
+  const selection = selectedRoutine();
+  const state = dev.getRoutineState();
+  state.preparedImageEncore = { found: false, bookId: 'book-1', sourcePage: 225, navigationType: 'NO_IMAGE_FOUND' };
+
+  await dev.startImageEncore(selection);
+
+  assert.equal(state.phase, 'ROUTINE_FINISHED');
+  assert.equal(sends.length, 0);
+  assert.equal(harness.played.length, 0);
+});
