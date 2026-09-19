@@ -11,6 +11,7 @@ const BTI_V2_BOOK_DEVICE_NAME = "MrCamerDev1.0";
 const BTI_V2_Q5_DEVICE_NAME = "MrCamerDev_Q5";
 const BTI_V2_ANTENNA8_DEBOUNCE_MS = 1200;
 const BTI_V2_Q5_ANTENNA_IDS = Object.freeze([2, 3, 4, 5, 6]);
+const BTI_V2_CROSS_BOOK_ENABLED_TAGS = Object.freeze(["01", "02", "03"]);
 const BTI_V2_DETECTOR_COMMANDS = Object.freeze({
   PAUSE: Object.freeze([0x43, 0x41, 0x01, 0x00]),
   RESUME: Object.freeze([0x43, 0x41, 0x01, 0x01]),
@@ -274,7 +275,7 @@ async function preloadBooks() {
 
 async function preloadImageEncoreCrossBookCatalog(books) {
   const catalog = [];
-  const enabledBooks = books.filter(book => book.imageEncoreCrossBookEnabled === true);
+  const enabledBooks = books.filter(book => BTI_V2_CROSS_BOOK_ENABLED_TAGS.includes(String(book.tag || "").padStart(2, "0")));
   for (const book of enabledBooks) {
     try {
       const manifest = await window.BookTestImposibleV2RuntimeManifest.loadRuntimeManifest(
@@ -768,17 +769,24 @@ function prepareImageEncore(selection) {
   const originalPage = Number(selection?.pageNumber);
   const startedAt = performance.now();
   logInfo(`[IMAGE-ENCORE] preparing book=${bookId} originalPage=${originalPage} sourcePage=${sourcePage}`, "BTI_V2");
-  const result = window.BookTestImposibleV2ImageEncore.resolveImageEncoreSelection({
-    originalBook: {
+  const imageEncoreApi = window.BookTestImposibleV2ImageEncore;
+  const result = typeof imageEncoreApi.resolveImageEncoreSelection === "function"
+    ? imageEncoreApi.resolveImageEncoreSelection({
+      originalBook: {
+        bookId,
+        tag: selection?.book?.tag,
+        title: selection?.book?.title,
+        images: selection.runtimeManifest.images,
+      },
+      originalPage,
+      sourcePage,
+      books: routineState.imageEncoreCrossBookCatalog,
+    })
+    : imageEncoreApi.resolveManifestBookImage({
       bookId,
-      tag: selection?.book?.tag,
-      title: selection?.book?.title,
+      sourcePage,
       images: selection.runtimeManifest.images,
-    },
-    originalPage,
-    sourcePage,
-    books: routineState.imageEncoreCrossBookCatalog,
-  });
+    });
   routineState.preparedImageEncore = result;
   if (!result.found) {
     logInfo(`[IMAGE-ENCORE] no image found book=${bookId} originalPage=${originalPage} sourcePage=${sourcePage}`, "BTI_V2");
