@@ -9,7 +9,8 @@
       "collection": "Las crónicas de Narnia",
       "isbn": "978-950-732-097-2",
       "language": "es",
-      "runtimeManifest": "runtime-manifest.json"
+      "runtimeManifest": "runtime-manifest.json",
+      "imageEncoreCrossBookEnabled": true
     },
     {
       "bookId": "narnia-el-leon-la-bruja-y-el-armario",
@@ -20,7 +21,8 @@
       "collection": "Las crónicas de Narnia",
       "isbn": "978-950-732-098-9",
       "language": "es",
-      "runtimeManifest": "runtime-manifest.json"
+      "runtimeManifest": "runtime-manifest.json",
+      "imageEncoreCrossBookEnabled": true
     },
     {
       "bookId": "el-caballo-y-el-muchacho",
@@ -30,7 +32,8 @@
       "root": "books/el-caballo-y-el-muchacho",
       "collection": "Las crónicas de Narnia",
       "language": "es",
-      "runtimeManifest": "runtime-manifest.json"
+      "runtimeManifest": "runtime-manifest.json",
+      "imageEncoreCrossBookEnabled": true
     }
   ]
 }
