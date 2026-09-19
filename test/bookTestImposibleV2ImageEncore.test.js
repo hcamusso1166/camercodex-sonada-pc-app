@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const manifest = require('../books/narnia-el-sobrino-del-mago/runtime-manifest.json');
+const book2Manifest = require('../books/narnia-el-leon-la-bruja-y-el-armario/runtime-manifest.json');
 const { resolveManifestBookImage, buildImageAudioPath, buildImageAudioQueue } = require('../js/rutinas/bookTestImposibleV2ImageEncore.js');
 const bookId = manifest.bookId;
 
@@ -10,6 +11,26 @@ test('Image Encore conserva navegación same/facing/one/multiple/not-found', () 
   assert.equal(resolveManifestBookImage({ bookId, sourcePage: 77, images: manifest.images }).navigationType, 'TURN_ONE_PAGE');
   assert.equal(resolveManifestBookImage({ bookId, sourcePage: 57, images: manifest.images }).navigationType, 'TURN_MULTIPLE_PAGES');
   assert.equal(resolveManifestBookImage({ bookId, sourcePage: 999, images: manifest.images }).navigationType, 'NO_IMAGE_FOUND');
+});
+
+test('Image Encore usa la página par anterior si está a la vista desde una página impar', () => {
+  const result = resolveManifestBookImage({
+    bookId: book2Manifest.bookId,
+    sourcePage: 17,
+    images: book2Manifest.images,
+  });
+  assert.deepEqual(
+    { targetPage: result.targetPage, imageId: result.imageId, navigationType: result.navigationType, turnCount: result.turnCount },
+    { targetPage: 16, imageId: 'image-001', navigationType: 'FACING_PAGE', turnCount: 0 }
+  );
+
+  const samePage = resolveManifestBookImage({
+    bookId: book2Manifest.bookId,
+    sourcePage: 23,
+    images: book2Manifest.images,
+  });
+  assert.equal(samePage.targetPage, 23);
+  assert.equal(samePage.navigationType, 'SAME_PAGE');
 });
 
 test('Image Encore desde page 107 conserva resultado operacional', () => {
