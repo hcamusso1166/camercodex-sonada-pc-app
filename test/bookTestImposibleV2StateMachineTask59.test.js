@@ -37,6 +37,7 @@ function loadRoutine() {
 
 function createAudioHarness() {
   const played = [];
+  const preloaded = [];
   let navigationRelease = null;
   const audio = {
     status: 'idle',
@@ -58,9 +59,11 @@ function createAudioHarness() {
       }
       this.status = 'completed';
     },
-    stop() {}, preload() {}, clearPreloaded() {},
+    stop() {},
+    preload(src) { preloaded.push(src); },
+    clearPreloaded() {},
   };
-  return { audio, played, releaseNavigation: () => navigationRelease() };
+  return { audio, played, preloaded, releaseNavigation: () => navigationRelease() };
 }
 
 function selectedRoutine() {
@@ -147,6 +150,48 @@ test('Image Encore calcula desde la página realmente leída: 3 → 9 → croqui
   assert.equal(result.targetPage, 13);
   assert.equal(result.turnCount, 2);
   assert.equal(result.navigationType, 'TURN_MULTIPLE_PAGES');
+});
+
+test('cross-book propaga libro destino a preload, SHOW_SKETCH y Encore Final', async () => {
+  const { dev, sends } = loadRoutine();
+  const harness = createAudioHarness();
+  dev.setShowAudioForTests(harness.audio);
+  const selection = {
+    book: { bookId: 'book-2', tag: '02', title: 'Libro 2' },
+    pageNumber: 14,
+    lineNumber: 5,
+    runtimeManifest: { images: [{ page: 22, imageId: 'future' }] },
+    readingPlan: { targets: [{ pageNumber: 14, lineNumber: 5 }, { pageNumber: 14, lineNumber: 6 }] },
+  };
+  const state = dev.getRoutineState();
+  state.imageEncoreCrossBookCatalog = [
+    { bookId: 'book-1', tag: '01', title: 'Libro 1', imageEncoreCrossBookEnabled: true, images: [{ page: 14, imageId: 'image-001' }] },
+    { bookId: 'book-2', tag: '02', title: 'Libro 2', imageEncoreCrossBookEnabled: true, images: selection.runtimeManifest.images },
+    { bookId: 'book-3', tag: '03', title: 'Libro 3', imageEncoreCrossBookEnabled: true, images: [{ page: 14, imageId: 'image-001' }] },
+  ];
+
+  const result = dev.prepareImageEncore(selection);
+  assert.equal(result.navigationType, 'CROSS_BOOK_EXACT_ORIGINAL_PAGE');
+  assert.equal(result.sourceBookId, 'book-2');
+  assert.equal(result.bookId, 'book-3');
+  assert.equal(result.targetPage, 14);
+  assert.deepEqual(harness.preloaded, ['../books/book-3/audios/page-014/images/image-001_p1.mp3']);
+
+  await dev.sendImageEncoreShowSketch(result);
+  assert.deepEqual(JSON.parse(JSON.stringify(sends)), [{
+    sequence: 0,
+    book: 'book-3',
+    page: 14,
+    image: 'image-001',
+  }]);
+
+  state.imageEncore = result;
+  await dev.startEncoreFinal();
+  assert.deepEqual(harness.played.at(-1), [
+    '../books/book-3/audios/page-014/images/image-001_p1.mp3',
+    '../books/book-3/audios/page-014/images/image-001_p2.mp3',
+    '../books/book-3/audios/page-014/images/image-001_p3.mp3',
+  ]);
 });
 
 test('NO_IMAGE_FOUND termina de forma controlada sin audio ni SHOW_SKETCH', async () => {
