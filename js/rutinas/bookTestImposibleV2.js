@@ -53,6 +53,7 @@ const routineState = {
   imageEncore: null,
   preparedImageEncore: null,
   preparedImageAudioPath: null,
+  imageEncoreCrossBookCatalog: [],
   imageEncoreTriggerConsumed: false,
   lastAntenna8GateAt: 0,
   ignoredLockedPacketLogged: false,
@@ -263,11 +264,36 @@ async function preloadBooks() {
     const booksIndex = await loadJson(BOOK_DATA.indexPath, "No se pudo cargar books/index.json");
     const books = normalizeBooksIndex(booksIndex).map(normalizeBookMetadata);
     routineState.books = books;
+    await preloadImageEncoreCrossBookCatalog(books);
     logInfo(`Index cargado con ${books.length} libro(s).`, "DATA");
   } catch (error) {
     logError(error.message, "DATA");
     updatePayloadStatus(error.message, true);
   }
+}
+
+async function preloadImageEncoreCrossBookCatalog(books) {
+  const catalog = [];
+  const enabledBooks = books.filter(book => book.imageEncoreCrossBookEnabled === true);
+  for (const book of enabledBooks) {
+    try {
+      const manifest = await window.BookTestImposibleV2RuntimeManifest.loadRuntimeManifest(
+        book,
+        path => loadJson(path, `No se pudo cargar runtime manifest de ${book.bookId}`)
+      );
+      catalog.push({
+        bookId: book.bookId,
+        tag: book.tag,
+        title: book.title,
+        imageEncoreCrossBookEnabled: true,
+        images: manifest.images,
+      });
+    } catch (error) {
+      logError(`[IMAGE-ENCORE] cross-book omitido ${book.bookId}: ${error.message}`, "DATA");
+    }
+  }
+  routineState.imageEncoreCrossBookCatalog = catalog;
+  logInfo(`[IMAGE-ENCORE] cross-book catalog ready books=${catalog.map(book => book.tag || book.bookId).join(",") || "none"}`, "DATA");
 }
 
 function registrarBookTestImposibleV2(payload = {}) {
@@ -651,7 +677,10 @@ async function startImageEncore(selection) {
   try {
     const triggerStartedAt = performance.now();
     const prepared = routineState.preparedImageEncore;
-    const result = prepared?.bookId === bookId && prepared?.sourcePage === sourcePage
+    const preparedSourceBookId = prepared?.sourceBookId || prepared?.bookId;
+    const result = preparedSourceBookId === bookId
+      && prepared?.sourcePage === sourcePage
+      && Number(prepared?.originalPage ?? selection.pageNumber) === Number(selection.pageNumber)
       ? prepared
       : prepareImageEncore(selection);
     routineState.imageEncore = result;
@@ -666,8 +695,8 @@ async function startImageEncore(selection) {
     }
 
     await sendImageEncoreShowSketch(result);
-    logInfo(`[IMAGE-ENCORE] targetPage=${result.targetPage} imageId=${result.imageId}`, "BTI_V2");
-    logInfo(`[IMAGE-ENCORE] pageDistance=${result.numberedPageDistance} turnCount=${result.turnCount} navigation=${result.navigationType}`, "BTI_V2");
+    logInfo(`[IMAGE-ENCORE] targetBook=${result.bookId} targetPage=${result.targetPage} imageId=${result.imageId}`, "BTI_V2");
+    logInfo(`[IMAGE-ENCORE] originalPage=${result.originalPage} pageDistance=${result.numberedPageDistance} turnCount=${result.turnCount} navigation=${result.navigationType}`, "BTI_V2");
     logInfo(`[IMAGE-ENCORE] triggerToPlayMs=${(performance.now() - triggerStartedAt).toFixed(2)}`, "BTI_V2");
     await playImageEncoreNavigationAudio(result);
     routineState.phase = BTI_V2_PHASES.WAITING_GATE_FOR_ENCORE_FINAL;
@@ -732,31 +761,38 @@ function resolveImageEncoreSourcePage(selection) {
   return Number(selection?.pageNumber);
 }
 
-  function prepareImageEncore(selection) {
+function prepareImageEncore(selection) {
   clearPreparedImageEncore();
   const bookId = selection?.book?.bookId || selection?.book?.id;
   const sourcePage = resolveImageEncoreSourcePage(selection);
+  const originalPage = Number(selection?.pageNumber);
   const startedAt = performance.now();
-  logInfo(`[IMAGE-ENCORE] preparing book=${bookId} sourcePage=${sourcePage}`, "BTI_V2");
-  const result = window.BookTestImposibleV2ImageEncore.resolveManifestBookImage({
-    bookId,
+  logInfo(`[IMAGE-ENCORE] preparing book=${bookId} originalPage=${originalPage} sourcePage=${sourcePage}`, "BTI_V2");
+  const result = window.BookTestImposibleV2ImageEncore.resolveImageEncoreSelection({
+    originalBook: {
+      bookId,
+      tag: selection?.book?.tag,
+      title: selection?.book?.title,
+      images: selection.runtimeManifest.images,
+    },
+    originalPage,
     sourcePage,
-    images: selection.runtimeManifest.images,
+    books: routineState.imageEncoreCrossBookCatalog,
   });
   routineState.preparedImageEncore = result;
   if (!result.found) {
-    logInfo(`[IMAGE-ENCORE] no image found book=${bookId} sourcePage=${sourcePage}`, "BTI_V2");
+    logInfo(`[IMAGE-ENCORE] no image found book=${bookId} originalPage=${originalPage} sourcePage=${sourcePage}`, "BTI_V2");
     return result;
   }
   const audioPath = `../books/${window.BookTestImposibleV2ImageEncore.buildImageAudioPath({
-    bookId,
+    bookId: result.bookId,
     page: result.targetPage,
     imageId: result.imageId,
     take: "p1",
   })}`;
   routineState.preparedImageAudioPath = audioPath;
   showAudio?.preload(audioPath);
-  logInfo(`[IMAGE-ENCORE] prepared targetPage=${result.targetPage} imageId=${result.imageId} resolveMs=${(performance.now() - startedAt).toFixed(2)}`, "BTI_V2");
+  logInfo(`[IMAGE-ENCORE] prepared sourceBook=${bookId} targetBook=${result.bookId} targetPage=${result.targetPage} imageId=${result.imageId} navigation=${result.navigationType} resolveMs=${(performance.now() - startedAt).toFixed(2)}`, "BTI_V2");
   logInfo(`[IMAGE-ENCORE] audio preload requested path=${audioPath}`, "AUDIO");
   return result;
 }
@@ -789,12 +825,15 @@ function renderImageEncore(result) {
 
   const lines = result.found
     ? [
-      `Página seleccionada: ${result.sourcePage}`,
+      `Página original: ${result.originalPage ?? result.sourcePage}`,
+      `Página al terminar la lectura: ${result.sourcePage}`,
+      ...(result.crossBook ? [`Libro de la imagen: ${result.targetBookTitle || result.bookId}`] : []),
       `Página de la imagen: ${result.targetPage}`,
       `Instrucción: ${result.navigationText}`,
     ]
     : [
-      `Página seleccionada: ${result.sourcePage}`,
+      `Página original: ${result.originalPage ?? result.sourcePage}`,
+      `Página al terminar la lectura: ${result.sourcePage}`,
       `Instrucción: ${result.navigationText}`,
     ];
 
@@ -1470,6 +1509,7 @@ window.bookTestImposibleV2Dev = {
   buildImageAudioPath: (...args) => window.BookTestImposibleV2ImageEncore.buildImageAudioPath(...args),
   prepareImageEncore,
   resolveImageEncoreSourcePage,
+  preloadImageEncoreCrossBookCatalog,
   clearPreparedImageEncore,
   buildImageTakeCandidates,
   resolveLocalImageTakes,
