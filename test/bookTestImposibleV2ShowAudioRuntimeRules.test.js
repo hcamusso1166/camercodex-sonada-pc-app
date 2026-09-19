@@ -68,7 +68,7 @@ test('la repetición de resolución anuncia sólo página y renglón', () => {
   assert.equal(sources.some(src => src.endsWith('/title.mp3')), false);
 });
 
-test('las cuatro navegaciones de Encore usan assets contractuales y secuencias numéricas compartidas', () => {
+test('las navegaciones de Encore usan assets contractuales y secuencias numéricas compartidas', () => {
   const sources = navigationType => Array.from(audio.buildImageEncoreNavigationQueue({
     found: true,
     navigationType,
@@ -82,6 +82,24 @@ test('las cuatro navegaciones de Encore usan assets contractuales y secuencias n
     '../audios/suma/200.mp3', '../audios/suma/30.mp3',
   ]);
   assert.equal(sources('FACING_PAGE')[0], '../audios/audios_especiales/encore_mira_pagina_contigua.mp3');
+  for (const localNavigationType of ['SAME_PAGE', 'FACING_PAGE', 'TURN_ONE_PAGE', 'TURN_MULTIPLE_PAGES']) {
+    assert.equal(
+      sources(localNavigationType).some(src => src.includes('/audios/_meta/title.mp3')),
+      false,
+      `${localNavigationType} no debe anunciar el nombre del libro`
+    );
+  }
+  const crossBookSources = Array.from(audio.buildImageEncoreNavigationQueue({
+    found: true,
+    navigationType: 'CROSS_BOOK_EXACT_ORIGINAL_PAGE',
+    bookId: 'el-caballo-y-el-muchacho',
+    targetPage: 230,
+  }).filter(item => item.type === 'audio').map(item => item.src));
+  assert.deepEqual(crossBookSources, [
+    '../books/el-caballo-y-el-muchacho/audios/_meta/title.mp3',
+    '../audios/audios_especiales/encore_la_imagen_esta_en_la_pagina.mp3',
+    '../audios/suma/200.mp3', '../audios/suma/30.mp3',
+  ]);
   assert.equal(sources('TURN_ONE_PAGE')[0], '../audios/audios_especiales/encore_avanza_una_vuelta_de_pagina.mp3');
   assert.deepEqual(sources('TURN_MULTIPLE_PAGES'), [
     '../audios/audios_especiales/encore_avanza.mp3',
