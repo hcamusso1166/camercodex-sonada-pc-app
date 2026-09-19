@@ -372,6 +372,16 @@
       if (result.navigationType === "FACING_PAGE") {
         return [{ type: "audio", src: special("encore_mira_pagina_contigua"), label: "[IMAGE-ENCORE] Navigation -> facing page" }, ...pageLocation];
       }
+      if (result.navigationType === "CROSS_BOOK_EXACT_ORIGINAL_PAGE") {
+        const targetBookTitle = result.bookId
+          ? [{ type: "audio", src: `../books/${result.bookId}/audios/_meta/title.mp3`, label: "[IMAGE-ENCORE] Navigation -> target book title" }]
+          : [];
+        return [
+          ...targetBookTitle,
+          { type: "pause", ms: 350, label: "pause:image-encore-target-book-page" },
+          ...pageLocation,
+        ];
+      }
       if (result.navigationType === "TURN_ONE_PAGE") {
         return [{ type: "audio", src: special("encore_avanza_una_vuelta_de_pagina"), label: "[IMAGE-ENCORE] Navigation -> turn one page" }, ...pageLocation];
       }
