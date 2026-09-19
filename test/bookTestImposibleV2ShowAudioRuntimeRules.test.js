@@ -82,6 +82,13 @@ test('las navegaciones de Encore usan assets contractuales y secuencias numéric
     '../audios/suma/200.mp3', '../audios/suma/30.mp3',
   ]);
   assert.equal(sources('FACING_PAGE')[0], '../audios/audios_especiales/encore_mira_pagina_contigua.mp3');
+  for (const localNavigationType of ['SAME_PAGE', 'FACING_PAGE', 'TURN_ONE_PAGE', 'TURN_MULTIPLE_PAGES']) {
+    assert.equal(
+      sources(localNavigationType).some(src => src.includes('/audios/_meta/title.mp3')),
+      false,
+      `${localNavigationType} no debe anunciar el nombre del libro`
+    );
+  }
   const crossBookSources = Array.from(audio.buildImageEncoreNavigationQueue({
     found: true,
     navigationType: 'CROSS_BOOK_EXACT_ORIGINAL_PAGE',
