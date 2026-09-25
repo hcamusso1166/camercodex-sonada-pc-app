@@ -68,6 +68,24 @@ test('la repetición de resolución anuncia sólo página y renglón', () => {
   assert.equal(sources.some(src => src.endsWith('/title.mp3')), false);
 });
 
+test('la indicación de salto usa sólo audios existentes y anuncia destino exacto', () => {
+  const sources = audio.buildReadingRelocationQueue({ sourcePage: 3, targetPage: 9, targetLine: 1 })
+    .filter(item => item.type === 'audio')
+    .map(item => item.src);
+
+  assert.deepEqual(Array.from(sources), [
+    '../audios/audios_especiales/encore_avanza.mp3',
+    '../audios/audios_especiales/pagina.mp3',
+    '../audios/suma/9.mp3',
+    '../audios/audios_especiales/renglon.mp3',
+    '../audios/suma/1.mp3',
+  ]);
+});
+
+test('la indicación de salto queda silenciosa cuando el primer renglón se lee en la página elegida', () => {
+  assert.deepEqual(Array.from(audio.buildReadingRelocationQueue({ sourcePage: 9, targetPage: 9, targetLine: 17 })), []);
+});
+
 test('las navegaciones de Encore usan assets contractuales y secuencias numéricas compartidas', () => {
   const sources = navigationType => Array.from(audio.buildImageEncoreNavigationQueue({
     found: true,
