@@ -326,6 +326,25 @@
       ];
     }
 
+    buildReadingRelocationQueue({ sourcePage, targetPage, targetLine } = {}) {
+      const source = Number(sourcePage);
+      const page = Number(targetPage);
+      const line = Number(targetLine);
+      if (!Number.isInteger(source) || !Number.isInteger(page) || !Number.isInteger(line) || page === source) {
+        return [];
+      }
+      return [
+        { type: "pause", ms: 350, label: "pause:reading-relocation" },
+        { type: "audio", src: "../audios/audios_especiales/encore_avanza.mp3", label: "[BTI_V2] Reading relocation -> advance cue" },
+        { type: "pause", ms: 250, label: "pause:reading-relocation-page" },
+        { type: "audio", src: "../audios/audios_especiales/pagina.mp3", label: "[BTI_V2] Reading relocation -> Página" },
+        ...this.buildAudioItemsFromSources(this.buildNumberAudioSequence(page), `reading-relocation:page:${this.pad3(page)}`),
+        { type: "pause", ms: 250, label: "pause:reading-relocation-line" },
+        { type: "audio", src: "../audios/audios_especiales/renglon.mp3", label: "[BTI_V2] Reading relocation -> Renglón" },
+        ...this.buildAudioItemsFromSources(this.buildNumberAudioSequence(line), `reading-relocation:line:${this.pad3(line)}`),
+      ];
+    }
+
     buildResolutionBookPageLineOnceQueue(context) {
       const pageSlug = this.pad3(context.pageNumber);
       const lineSlug = this.pad3(context.playbackLineNumber);
