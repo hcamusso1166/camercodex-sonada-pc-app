@@ -860,14 +860,30 @@ function buildReadingTargetQueue(selection, targetIndex) {
   return showAudio.playClassicReadingTwoTakes(context, takes);
 }
 
+function buildReadingRelocationQueue(selection) {
+  const target = selection?.readingPlan?.targets?.[0];
+  if (!target || Number(target.pageNumber) === Number(selection?.pageNumber)) return [];
+  return showAudio.buildReadingRelocationQueue({
+    sourcePage: selection.pageNumber,
+    targetPage: target.pageNumber,
+    targetLine: target.lineNumber,
+  });
+}
+
 function buildResolutionQueue(selection) {
   const context = showAudio.resolveReadingContext(selection.book.bookId, selection.pageNumber, selection.lineNumber);
-  return showAudio.buildResolutionBookPageLineOnceQueue(context);
+  return [
+    ...showAudio.buildResolutionBookPageLineOnceQueue(context),
+    ...buildReadingRelocationQueue(selection),
+  ];
 }
 
 function buildResolutionPageLineRepeatQueue(selection) {
   const context = showAudio.resolveReadingContext(selection.book.bookId, selection.pageNumber, selection.lineNumber);
-  return showAudio.buildResolutionPageLineRepeatQueue(context);
+  return [
+    ...showAudio.buildResolutionPageLineRepeatQueue(context),
+    ...buildReadingRelocationQueue(selection),
+  ];
 }
 
 async function playQueueItems(queue, emptyMessage = "No hay audios disponibles para reproducir.") {
@@ -1513,6 +1529,8 @@ window.bookTestImposibleV2Dev = {
   resolveBookByDeviceCode,
   parseSelectionPayload,
   buildImageTakePath,
+  buildResolutionQueue,
+  buildResolutionPageLineRepeatQueue,
   resolveImageNavigation: (...args) => window.BookTestImposibleV2ImageEncore.resolveImageNavigation(...args),
   buildImageAudioPath: (...args) => window.BookTestImposibleV2ImageEncore.buildImageAudioPath(...args),
   prepareImageEncore,
