@@ -96,7 +96,7 @@ test('Task 59 recorre repetición, lecturas, navegación y Encore Final con un s
 
   await dev.handleAntenna8Gate();
   assert.equal(state.phase, 'WAITING_GATE_FOR_READING_TARGET_1');
-  assert.deepEqual(harness.played[0], ['../audios/audios_especiales/pagina.mp3', '../audios/audios_especiales/renglon.mp3']);
+  assert.deepEqual(Array.from(harness.played[0]), ['../audios/audios_especiales/pagina.mp3', '../audios/audios_especiales/renglon.mp3']);
 
   await dev.handleAntenna8Gate();
   assert.equal(state.phase, 'WAITING_GATE_FOR_READING_TARGET_2');
@@ -150,17 +150,17 @@ test('RESOLUCION y REPETICION agregan la indicación sólo cuando Target 1 salta
     readingPlan: { targets: [{ pageNumber: 9, lineNumber: 1 }, { pageNumber: 9, lineNumber: 2 }] },
   };
   assert.deepEqual(
-    dev.buildResolutionQueue(relocated).map(item => item.src).filter(Boolean),
+    Array.from(dev.buildResolutionQueue(relocated).map(item => item.src).filter(Boolean)),
     ['title.mp3', '../audios/audios_especiales/pagina.mp3', '../audios/audios_especiales/renglon.mp3', 'encore_avanza.mp3', 'page-9.mp3', 'line-1.mp3']
   );
   assert.deepEqual(
-    dev.buildResolutionPageLineRepeatQueue(relocated).map(item => item.src).filter(Boolean),
+    Array.from(dev.buildResolutionPageLineRepeatQueue(relocated).map(item => item.src).filter(Boolean)),
     ['../audios/audios_especiales/pagina.mp3', '../audios/audios_especiales/renglon.mp3', 'encore_avanza.mp3', 'page-9.mp3', 'line-1.mp3']
   );
 
   const direct = selectedRoutine();
   assert.deepEqual(
-    dev.buildResolutionPageLineRepeatQueue(direct).map(item => item.src).filter(Boolean),
+    Array.from(dev.buildResolutionPageLineRepeatQueue(direct).map(item => item.src).filter(Boolean)),
     ['../audios/audios_especiales/pagina.mp3', '../audios/audios_especiales/renglon.mp3']
   );
 });
