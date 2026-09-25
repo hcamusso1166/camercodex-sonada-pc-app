@@ -44,8 +44,14 @@ function createAudioHarness() {
     resolveReadingContext(bookId, pageNumber, lineNumber) {
       return { bookId, pageNumber, playbackLineNumber: lineNumber, partCount: 1 };
     },
+    buildResolutionBookPageLineOnceQueue() {
+      return [{ type: 'audio', src: 'title.mp3' }, { type: 'audio', src: '../audios/audios_especiales/pagina.mp3' }, { type: 'audio', src: '../audios/audios_especiales/renglon.mp3' }];
+    },
     buildResolutionPageLineRepeatQueue() {
       return [{ type: 'audio', src: '../audios/audios_especiales/pagina.mp3' }, { type: 'audio', src: '../audios/audios_especiales/renglon.mp3' }];
+    },
+    buildReadingRelocationQueue({ targetPage, targetLine }) {
+      return [{ type: 'audio', src: 'encore_avanza.mp3' }, { type: 'audio', src: `page-${targetPage}.mp3` }, { type: 'audio', src: `line-${targetLine}.mp3` }];
     },
     getClassicTakeUrls(context) { return { p1: `line-${context.playbackLineNumber}.mp3` }; },
     playClassicReadingTwoTakes(context, takes) {
@@ -90,7 +96,7 @@ test('Task 59 recorre repetición, lecturas, navegación y Encore Final con un s
 
   await dev.handleAntenna8Gate();
   assert.equal(state.phase, 'WAITING_GATE_FOR_READING_TARGET_1');
-  assert.deepEqual(harness.played[0], ['../audios/audios_especiales/pagina.mp3', '../audios/audios_especiales/renglon.mp3']);
+  assert.deepEqual(Array.from(harness.played[0]), ['../audios/audios_especiales/pagina.mp3', '../audios/audios_especiales/renglon.mp3']);
 
   await dev.handleAntenna8Gate();
   assert.equal(state.phase, 'WAITING_GATE_FOR_READING_TARGET_2');
@@ -130,6 +136,34 @@ test('Task 59 recorre repetición, lecturas, navegación y Encore Final con un s
   assert.equal(state.imageEncoreTriggerConsumed, false);
 });
 
+
+test('RESOLUCION y REPETICION agregan la indicación sólo cuando Target 1 salta de página', () => {
+  const { dev } = loadRoutine();
+  const harness = createAudioHarness();
+  dev.setShowAudioForTests(harness.audio);
+
+  const relocated = {
+    book: { bookId: 'book-1' },
+    pageNumber: 3,
+    lineNumber: 13,
+    runtimeManifest: { images: [] },
+    readingPlan: { targets: [{ pageNumber: 9, lineNumber: 1 }, { pageNumber: 9, lineNumber: 2 }] },
+  };
+  assert.deepEqual(
+    Array.from(dev.buildResolutionQueue(relocated).map(item => item.src).filter(Boolean)),
+    ['title.mp3', '../audios/audios_especiales/pagina.mp3', '../audios/audios_especiales/renglon.mp3', 'encore_avanza.mp3', 'page-9.mp3', 'line-1.mp3']
+  );
+  assert.deepEqual(
+    Array.from(dev.buildResolutionPageLineRepeatQueue(relocated).map(item => item.src).filter(Boolean)),
+    ['../audios/audios_especiales/pagina.mp3', '../audios/audios_especiales/renglon.mp3', 'encore_avanza.mp3', 'page-9.mp3', 'line-1.mp3']
+  );
+
+  const direct = selectedRoutine();
+  assert.deepEqual(
+    Array.from(dev.buildResolutionPageLineRepeatQueue(direct).map(item => item.src).filter(Boolean)),
+    ['../audios/audios_especiales/pagina.mp3', '../audios/audios_especiales/renglon.mp3']
+  );
+});
 
 test('Image Encore calcula desde la página realmente leída: 3 → 9 → croquis 13 = 2 vueltas', () => {
   const { dev } = loadRoutine();
