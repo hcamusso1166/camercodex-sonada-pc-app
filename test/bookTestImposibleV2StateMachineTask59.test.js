@@ -4,10 +4,15 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const imageEncore = require('../js/rutinas/bookTestImposibleV2ImageEncore.js');
+const booksIndex = require('../books/index.json');
+const book1Manifest = require('../books/narnia-el-sobrino-del-mago/runtime-manifest.json');
+const book2Manifest = require('../books/narnia-el-leon-la-bruja-y-el-armario/runtime-manifest.json');
+const book3Manifest = require('../books/el-caballo-y-el-muchacho/runtime-manifest.json');
+const book4Manifest = require('../books/el-principe-caspian/runtime-manifest.json');
 
 const routineSource = fs.readFileSync(path.join(__dirname, '../js/rutinas/bookTestImposibleV2.js'), 'utf8');
 
-function loadRoutine() {
+function loadRoutine({ runtimeManifestByBookId = {} } = {}) {
   const sends = [];
   const elements = new Map();
   const element = id => {
@@ -24,7 +29,10 @@ function loadRoutine() {
   const window = {
     sendShowSketchToQ5: async request => sends.push(request),
     BookTestImposibleV2ImageEncore: imageEncore,
-    BookTestImposibleV2RuntimeManifest: { resolveReadingPartCount: () => 1 },
+    BookTestImposibleV2RuntimeManifest: {
+      resolveReadingPartCount: () => 1,
+      loadRuntimeManifest: async book => runtimeManifestByBookId[book.bookId],
+    },
   };
   vm.runInNewContext(routineSource, {
     window, document, console, performance: { now: () => 1 }, Date, Error, String, Number,
@@ -226,6 +234,47 @@ test('cross-book propaga libro destino a preload, SHOW_SKETCH y Encore Final', a
     '../books/book-3/audios/page-014/images/image-001_p2.mp3',
     '../books/book-3/audios/page-014/images/image-001_p3.mp3',
   ]);
+});
+
+test('catálogo cross-book incluye Libro 4 y resuelve página 18 desde Libro 3 hacia Caspian', async () => {
+  const runtimeManifestByBookId = {
+    [book1Manifest.bookId]: book1Manifest,
+    [book2Manifest.bookId]: book2Manifest,
+    [book3Manifest.bookId]: book3Manifest,
+    [book4Manifest.bookId]: book4Manifest,
+  };
+  const { dev } = loadRoutine({ runtimeManifestByBookId });
+
+  await dev.preloadImageEncoreCrossBookCatalog(booksIndex.books);
+
+  const state = dev.getRoutineState();
+  assert.deepEqual(
+    Array.from(state.imageEncoreCrossBookCatalog, book => book.tag),
+    ['01', '02', '03', '04']
+  );
+
+  const book3 = booksIndex.books.find(book => book.bookId === book3Manifest.bookId);
+  const result = dev.prepareImageEncore({
+    book: book3,
+    pageNumber: 18,
+    lineNumber: 1,
+    runtimeManifest: book3Manifest,
+    readingPlan: { targets: [{ pageNumber: 18 }, { pageNumber: 18 }] },
+  });
+
+  assert.deepEqual({
+    bookId: result.bookId,
+    sourceBookId: result.sourceBookId,
+    targetPage: result.targetPage,
+    imageId: result.imageId,
+    navigationType: result.navigationType,
+  }, {
+    bookId: book4Manifest.bookId,
+    sourceBookId: book3Manifest.bookId,
+    targetPage: 18,
+    imageId: 'image-001',
+    navigationType: 'CROSS_BOOK_EXACT_ORIGINAL_PAGE',
+  });
 });
 
 test('NO_IMAGE_FOUND termina de forma controlada sin audio ni SHOW_SKETCH', async () => {
