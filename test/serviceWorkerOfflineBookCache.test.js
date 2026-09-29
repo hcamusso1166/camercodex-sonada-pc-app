@@ -9,7 +9,7 @@ const SERVICE_WORKER_SOURCE = fs.readFileSync(SERVICE_WORKER_PATH, 'utf8');
 const CACHE_FILES_PATH = path.join(__dirname, '..', 'cache-files.json');
 const CACHE_FILES = JSON.parse(fs.readFileSync(CACHE_FILES_PATH, 'utf8'));
 const APP_ORIGIN = 'https://app.example';
-const CACHE_NAME = 'camer-codex-cache-v22';
+const CACHE_NAME = 'camer-codex-cache-v23';
 const BOOKS_INDEX_PATH = '/books/index.json';
 const BOOK_ID = 'narnia-el-sobrino-del-mago';
 const OFFLINE_CACHE_NAME = `camer-codex-bti-offline-v1-${BOOK_ID}`;
@@ -405,12 +405,13 @@ test('cold-start libro 03 obtiene índice general y assets dedicados, sin tocar 
   assert.deepEqual(calls.deleted, []);
 });
 
-test('actualización v21→v22 precarga un índice nuevo y preserva las tres cachés BTI', async () => {
-  const oldName = 'camer-codex-cache-v21';
+test('actualización v22→v23 precarga un índice nuevo y preserva las cuatro cachés BTI', async () => {
+  const oldName = 'camer-codex-cache-v22';
   const bookIds = [
     'narnia-el-sobrino-del-mago',
     'narnia-el-leon-la-bruja-y-el-armario',
     'el-caballo-y-el-muchacho',
+    'el-principe-caspian',
   ];
   const oldIndex = { books: bookIds.slice(0, 2).map(bookId => ({ bookId })) };
   const newIndex = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'books', 'index.json'), 'utf8'));
@@ -428,8 +429,8 @@ test('actualización v21→v22 precarga un índice nuevo y preserva las tres cac
   });
   assert.equal(cacheMap.has(CACHE_NAME), false);
   await dispatchInstall(listeners);
-  assert.deepEqual(calls.opened, ['camer-codex-cache-v22']);
-  const fresh = cacheMap.get('camer-codex-cache-v22');
+  assert.deepEqual(calls.opened, ['camer-codex-cache-v23']);
+  const fresh = cacheMap.get('camer-codex-cache-v23');
   assert.deepEqual(fresh.addCalls, [BOOKS_INDEX_PATH]);
   assert.deepEqual(calls.fetch.map(args => args[0]), ['/cache-files.json', BOOKS_INDEX_PATH]);
   assert.deepEqual(oldCache.matchCalls, []);

@@ -48,6 +48,29 @@ for (const bookDirent of fs.readdirSync(booksRoot, { withFileTypes: true })) {
       });
     }
   }
+  const runtimeManifestPath = path.join(booksRoot, bookDirent.name, "runtime-manifest.json");
+  if (fs.existsSync(runtimeManifestPath)) {
+    const runtimeManifest = JSON.parse(fs.readFileSync(runtimeManifestPath, "utf8"));
+    if (runtimeManifest.bookId !== bookDirent.name || !Array.isArray(runtimeManifest.images)) {
+      throw new Error(`[IMAGE-INDEX] invalid runtime manifest in ${path.relative(repoRoot, runtimeManifestPath)}`);
+    }
+    for (const image of runtimeManifest.images) {
+      const imageId = typeof image?.imageId === "string" ? image.imageId.trim() : "";
+      if (!Number.isInteger(image?.page) || image.page <= 0 || !imageId) {
+        throw new Error(`[IMAGE-INDEX] invalid runtime image in ${path.relative(repoRoot, runtimeManifestPath)}`);
+      }
+      const key = `${bookDirent.name}:${image.page}:${imageId}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      entries.push({
+        bookId: bookDirent.name,
+        page: image.page,
+        imageId,
+        description: "",
+        audio: `${bookDirent.name}/audios/page-${String(image.page).padStart(3, "0")}/images/${imageId}_p1.mp3`,
+      });
+    }
+  }
   entries.sort((a, b) => a.page - b.page || a.imageId.localeCompare(b.imageId));
   index[bookDirent.name] = entries;
   console.log(`[IMAGE-INDEX] book=${bookDirent.name} pagesScanned=${pageFiles.length} imagesFound=${entries.length}`);

@@ -26,7 +26,7 @@ function walk(directory) {
 }
 
 test('libro 03 conserva metadata, exactamente 225 páginas y la fuente literal validada', () => {
-  assert.equal(index.books.length, 3);
+  assert.equal(index.books.length, 4);
   assert.equal(index.books[2], book);
   assert.deepEqual(book, { bookId: id, tag: '03', title: 'El caballo y el muchacho', author: 'C. S. Lewis', root: `books/${id}`, collection: 'Las crónicas de Narnia', language: 'es', runtimeManifest: 'runtime-manifest.json' });
   assert.deepEqual(readJson(path.join(base, 'book.json')), { bookId: id, title: book.title, author: book.author, language: 'es', pages: { start: 11, end: 241 } });
