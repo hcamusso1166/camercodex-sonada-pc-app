@@ -12,6 +12,7 @@ const booksIndex = JSON.parse(fs.readFileSync(path.join(__dirname, '../books/ind
 
 async function loadRoutine() {
   const writes = [];
+  const audioEvents = [];
   let initialize;
   const elements = new Map();
   const element = id => {
@@ -47,10 +48,10 @@ async function loadRoutine() {
   };
   class ShowAudio {
     constructor() { this.status = 'idle'; this.lastPlayableQueue = []; }
-    buildDetectionBookTitleQueue() { return []; }
-    buildDetectionSlotQueue() { return []; }
-    buildDetectionPageLineQueue() { return []; }
-    enqueueAuxiliaryQueue() {}
+    buildDetectionBookTitleQueue(book) { return [`book:${book.tag}`]; }
+    buildDetectionSlotQueue(slotNumber) { return [`slot:${slotNumber}`]; }
+    buildDetectionPageLineQueue() { return ['page-line']; }
+    enqueueAuxiliaryQueue(queue) { audioEvents.push(...queue); }
     resolveReadingContext() { return {}; }
     buildResolutionBookPageLineOnceQueue() { return []; }
     buildResolutionPageLineRepeatQueue() { return []; }
@@ -101,7 +102,7 @@ async function loadRoutine() {
     fetch: async () => ({ ok: true, json: async () => booksIndex }),
   }, { filename: 'bookTestImposibleV2.js' });
   await initialize();
-  return { dev: window.bookTestImposibleV2Dev, writes, elements };
+  return { dev: window.bookTestImposibleV2Dev, writes, elements, audioEvents };
 }
 
 function completeSelection(state) {
@@ -195,6 +196,27 @@ test('manual book selector lists the four operational books and overrides a phys
 
   dev.handleBookDevicePacket({ antennaId: 1, bookCode: '01', rawValue: '01' });
   assert.equal(state.currentBook.bookId, 'narnia-el-sobrino-del-mago');
+});
+
+test('manual injection always queues book audio before slot1..slot5 audio', async () => {
+  const { dev, elements, audioEvents } = await loadRoutine();
+  const selector = elements.get('manualBookSelection');
+  selector.value = '04';
+
+  dev.handleBookDevicePacket({ antennaId: 1, bookCode: '04', rawValue: '04' });
+  assert.deepEqual(audioEvents, ['book:04']);
+  audioEvents.length = 0;
+
+  await dev.injectMultiAntennaSelectionFromUi();
+
+  assert.deepEqual(audioEvents.slice(0, 6), [
+    'book:04',
+    'slot:1',
+    'slot:2',
+    'slot:3',
+    'slot:4',
+    'slot:5',
+  ]);
 });
 
 test('Nueva Detección and Reiniciar detección rearm before one dual RESUME', async () => {

@@ -251,6 +251,7 @@ async function injectMultiAntennaSelectionFromUi() {
   clearSelectionView();
   renderBookInfo(selectedBook, selectedBookTag);
   logInfo(`[MANUAL] Libro seleccionado manualmente: tag=${selectedBookTag} bookId=${selectedBook.bookId}`, "MANUAL");
+  playBtiV2DetectionBookTitleAudio(selectedBook);
   updateQ5SlotsFromValues(slots, "UX_MANUAL_ESCAPE");
   updatePayloadStatus("Selección manual cargada. Usá Siguiente Audio ▶ para bloquear.", false);
 }
