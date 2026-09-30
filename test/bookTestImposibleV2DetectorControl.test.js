@@ -149,18 +149,19 @@ test('incomplete Siguiente Audio does not freeze or PAUSE', async () => {
   assert.deepEqual(writes, []);
 });
 
-test('injected multiantenna values converge on the same freeze and dual PAUSE', async () => {
+test('injected multiantenna values immediately converge on the same freeze and dual PAUSE', async () => {
   const { dev, writes } = await loadRoutine();
   const state = dev.getRoutineState();
   state.currentBook = { bookId: 'book-1', title: 'Book 1' };
   state.phase = 'DETECCION';
   await dev.injectMultiAntennaSelectionFromUi();
-
-  await dev.tryLockAndStartShow();
   await flushWrites();
 
+  assert.equal(state.selectionLocked, true);
+  assert.equal(state.lockedSelection.book.tag, '01');
   assert.equal(state.lockedSelection.page, 44);
   assert.equal(state.lockedSelection.line, 6);
+  assert.deepEqual(JSON.parse(JSON.stringify(state.lockedSelection.q5Slots)), { 2: 20, 3: 20, 4: 4, 5: 1, 6: 5 });
   assert.deepEqual(writes.map(([role, payload]) => [role, payload]), [
     ['bookDevice', [0x43, 0x41, 0x01, 0x00]],
     ['q5Device', [0x43, 0x41, 0x01, 0x00]],
@@ -194,8 +195,8 @@ test('manual book selector lists the four operational books and overrides a phys
   assert.equal(elements.get('resolvedPage').textContent, '44');
   assert.equal(elements.get('resolvedLine').textContent, '6');
 
-  dev.handleBookDevicePacket({ antennaId: 1, bookCode: '01', rawValue: '01' });
-  assert.equal(state.currentBook.bookId, 'narnia-el-sobrino-del-mago');
+  await dev.handleBtiV2Packet({ antennaId: 1, bookCode: '01', rawValue: '01' }, 'bookDevice');
+  assert.equal(state.currentBook.bookId, 'el-principe-caspian');
 });
 
 test('manual injection always queues book audio before slot1..slot5 audio', async () => {
@@ -217,6 +218,41 @@ test('manual injection always queues book audio before slot1..slot5 audio', asyn
     'slot:4',
     'slot:5',
   ]);
+});
+
+test('manual lock rejects physical book and Q5 changes, then antenna 8 advances without another PAUSE', async () => {
+  const { dev, writes, elements, audioEvents } = await loadRoutine();
+  const state = dev.getRoutineState();
+  elements.get('manualBookSelection').value = '04';
+  await dev.injectMultiAntennaSelectionFromUi();
+  await flushWrites();
+
+  const lockedSelection = state.lockedSelection;
+  const lockedSlots = JSON.parse(JSON.stringify(state.q5Slots));
+  const visibleValues = ['resolvedBookTitle', 'resolvedBookCode', 'resolvedPage', 'resolvedLine']
+    .map(id => elements.get(id).textContent);
+  const audioCount = audioEvents.length;
+  assert.equal(state.phase, 'WAITING_GATE_FOR_RESOLUTION_REPEAT');
+  assert.equal(writes.length, 2);
+
+  await dev.handleBtiV2Packet({ antennaId: 2, value: 1, rawValue: '01' }, 'q5Device');
+  await dev.handleBtiV2Packet({ antennaId: 1, bookCode: '01', rawValue: '01' }, 'bookDevice');
+
+  assert.equal(state.currentBook.bookId, 'el-principe-caspian');
+  assert.equal(state.lockedSelection, lockedSelection);
+  assert.deepEqual(JSON.parse(JSON.stringify(state.q5Slots)), lockedSlots);
+  assert.deepEqual(
+    ['resolvedBookTitle', 'resolvedBookCode', 'resolvedPage', 'resolvedLine'].map(id => elements.get(id).textContent),
+    visibleValues
+  );
+  assert.equal(audioEvents.length, audioCount);
+
+  state.lastAntenna8GateAt = -2000;
+  await dev.handleBtiV2Packet({ antennaId: 8, value: 2, rawValue: '02' }, 'q5Device');
+  await flushWrites();
+
+  assert.equal(state.phase, 'WAITING_GATE_FOR_READING_TARGET_1');
+  assert.equal(writes.length, 2);
 });
 
 test('manual injection cannot mutate locked state, resolved UI, slots, or audio', async () => {

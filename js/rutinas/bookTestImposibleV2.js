@@ -258,7 +258,7 @@ async function injectMultiAntennaSelectionFromUi() {
   logInfo(`[MANUAL] Libro seleccionado manualmente: tag=${selectedBookTag} bookId=${selectedBook.bookId}`, "MANUAL");
   playBtiV2DetectionBookTitleAudio(selectedBook);
   updateQ5SlotsFromValues(slots, "UX_MANUAL_ESCAPE");
-  updatePayloadStatus("Selección manual cargada. Usá Siguiente Audio ▶ para bloquear.", false);
+  await handleDetectionFinishGate({ waitForDetectionAudio: true });
 }
 
 function simulateAntenna8GateFromDev() {
@@ -582,7 +582,7 @@ async function tryLockAndStartShow() {
   return handleDetectionFinishGate();
 }
 
-async function handleDetectionFinishGate() {
+async function handleDetectionFinishGate({ waitForDetectionAudio = false } = {}) {
   if (routineState.selectionLocked) return;
   if (routineState.phase !== BTI_V2_PHASES.DETECCION && routineState.phase !== BTI_V2_PHASES.LISTENING) {
     updatePayloadStatus("La detección no está lista para bloquear en esta etapa.", true);
@@ -618,6 +618,9 @@ async function handleDetectionFinishGate() {
     updatePayloadStatus("Selección fijada. Reproduciendo libro, página y renglón.", false);
     renderDeviceStatuses();
     logInfo("[BTI_V2] Playing resolution audio: book/page/line once", "AUDIO");
+    if (waitForDetectionAudio) {
+      await showAudio?.auxiliaryQueueChain;
+    }
     await playResolutionAudio(selection);
     routineState.phase = BTI_V2_PHASES.WAITING_GATE_FOR_RESOLUTION_REPEAT;
     logInfo("[BTI_V2] Waiting antenna 8 for page/line resolution repeat", "BLE");
@@ -1561,6 +1564,7 @@ window.bookTestImposibleV2Dev = {
   buildReadingStatusItems,
   formatReadingStatusItem,
   resolveBookByDeviceCode,
+  handleBtiV2Packet,
   handleBookDevicePacket,
   parseSelectionPayload,
   buildImageTakePath,
