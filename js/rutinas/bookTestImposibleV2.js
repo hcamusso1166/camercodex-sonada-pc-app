@@ -84,6 +84,7 @@ const ui = {
   resolvedContextList: null,
   routineLog: null,
   multiAntennaSimCard: null,
+  manualBookSelection: null,
   multiAntennaSlotInputs: [],
   multiAntennaInjectButton: null,
   simulateAntenna8GateButton: null,
@@ -133,6 +134,7 @@ function bindUiElements() {
   ui.routineLog = document.getElementById("routineLog");
   
   ui.multiAntennaSimCard = document.getElementById("multiAntennaSimCard");
+  ui.manualBookSelection = document.getElementById("manualBookSelection");
   ui.multiAntennaSlotInputs = [1, 2, 3, 4, 5]
     .map(slotNumber => document.getElementById(`multiAntennaSlot${slotNumber}`))
     .filter(Boolean);
@@ -157,7 +159,7 @@ function bindMultiAntennaSimulatorEvents() {
     return;
   }
 
-  if (!ui.multiAntennaSimCard || !ui.multiAntennaInjectButton || ui.multiAntennaSlotInputs.length !== DEV_MULTIANTENNA_DEFAULT_SLOTS.length) {
+  if (!ui.multiAntennaSimCard || !ui.manualBookSelection || !ui.multiAntennaInjectButton || ui.multiAntennaSlotInputs.length !== DEV_MULTIANTENNA_DEFAULT_SLOTS.length) {
     logError("[MANUAL][ERROR] Elección manual multiantena incompleta en HTML.", "MANUAL");
     return;
   }
@@ -214,6 +216,14 @@ function validateMultiAntennaSlots(slots) {
 }
 
 async function injectMultiAntennaSelectionFromUi() {
+  const selectedBookTag = String(ui.manualBookSelection?.value || "").trim();
+  const selectedBook = routineState.books.find(book => String(book.tag || "").padStart(2, "0") === selectedBookTag);
+  if (!selectedBook) {
+    updatePayloadStatus("Seleccioná un libro para la elección manual.", true);
+    logError("[MANUAL][ERROR] Libro manual inválido o no seleccionado", "MANUAL");
+    return;
+  }
+
   const slots = readMultiAntennaSlotsFromUi();
   const slotsLabel = slots.map(slot => (slot == null ? "null" : String(slot))).join(",");
   logInfo(`[MANUAL] Slots recibidos: [${slotsLabel}]`, "MANUAL");
@@ -236,11 +246,13 @@ async function injectMultiAntennaSelectionFromUi() {
   }
   logInfo("[MANUAL] Inyectando selección multiantena en flujo V2", "MANUAL");
 
+  routineState.currentBook = selectedBook;
+  routineState.currentSelection = null;
+  clearSelectionView();
+  renderBookInfo(selectedBook, selectedBookTag);
+  logInfo(`[MANUAL] Libro seleccionado manualmente: tag=${selectedBookTag} bookId=${selectedBook.bookId}`, "MANUAL");
   updateQ5SlotsFromValues(slots, "UX_MANUAL_ESCAPE");
-    updatePayloadStatus(routineState.currentBook
-    ? "Selección manual cargada. Usá Siguiente Audio ▶ para bloquear."
-    : "Selección manual cargada. Esperando libro y Siguiente Audio ▶.",
-    false);
+  updatePayloadStatus("Selección manual cargada. Usá Siguiente Audio ▶ para bloquear.", false);
 }
 
 function simulateAntenna8GateFromDev() {
@@ -265,12 +277,28 @@ async function preloadBooks() {
     const booksIndex = await loadJson(BOOK_DATA.indexPath, "No se pudo cargar books/index.json");
     const books = normalizeBooksIndex(booksIndex).map(normalizeBookMetadata);
     routineState.books = books;
+    populateManualBookSelection(books);
     await preloadImageEncoreCrossBookCatalog(books);
     logInfo(`Index cargado con ${books.length} libro(s).`, "DATA");
   } catch (error) {
     logError(error.message, "DATA");
     updatePayloadStatus(error.message, true);
   }
+}
+
+function populateManualBookSelection(books) {
+  if (!ui.manualBookSelection) return;
+
+  ui.manualBookSelection.replaceChildren();
+  books
+    .filter(book => BTI_V2_CROSS_BOOK_ENABLED_TAGS.includes(String(book.tag || "").padStart(2, "0")))
+    .forEach(book => {
+      const tag = String(book.tag).padStart(2, "0");
+      const option = document.createElement("option");
+      option.value = tag;
+      option.textContent = `${tag} — ${book.title}`;
+      ui.manualBookSelection.appendChild(option);
+    });
 }
 
 async function preloadImageEncoreCrossBookCatalog(books) {
@@ -1527,6 +1555,7 @@ window.bookTestImposibleV2Dev = {
   buildReadingStatusItems,
   formatReadingStatusItem,
   resolveBookByDeviceCode,
+  handleBookDevicePacket,
   parseSelectionPayload,
   buildImageTakePath,
   buildResolutionQueue,

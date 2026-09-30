@@ -8,6 +8,7 @@ const routineSource = fs.readFileSync(
   path.join(__dirname, '../js/rutinas/bookTestImposibleV2.js'),
   'utf8'
 );
+const booksIndex = JSON.parse(fs.readFileSync(path.join(__dirname, '../books/index.json'), 'utf8'));
 
 async function loadRoutine() {
   const writes = [];
@@ -25,7 +26,15 @@ async function loadRoutine() {
         addEventListener() {},
         toggleAttribute() {},
         removeAttribute() {},
-        appendChild() {},
+        children: [],
+        appendChild(child) {
+          this.children.push(child);
+          if (this.value === '') this.value = child.value;
+        },
+        replaceChildren() {
+          this.children = [];
+          this.value = '';
+        },
       });
     }
     return elements.get(id);
@@ -34,7 +43,7 @@ async function loadRoutine() {
     readyState: 'loading',
     addEventListener(name, callback) { if (name === 'DOMContentLoaded') initialize = callback; },
     getElementById(id) { return element(id); },
-    createElement() { return { style: {} }; },
+    createElement() { return { style: {}, value: '', textContent: '' }; },
   };
   class ShowAudio {
     constructor() { this.status = 'idle'; this.lastPlayableQueue = []; }
@@ -89,10 +98,10 @@ async function loadRoutine() {
     RegExp,
     Promise,
     Uint8Array,
-    fetch: async () => ({ ok: true, json: async () => [] }),
+    fetch: async () => ({ ok: true, json: async () => booksIndex }),
   }, { filename: 'bookTestImposibleV2.js' });
   await initialize();
-  return { dev: window.bookTestImposibleV2Dev, writes };
+  return { dev: window.bookTestImposibleV2Dev, writes, elements };
 }
 
 function completeSelection(state) {
@@ -155,6 +164,37 @@ test('injected multiantenna values converge on the same freeze and dual PAUSE', 
     ['bookDevice', [0x43, 0x41, 0x01, 0x00]],
     ['q5Device', [0x43, 0x41, 0x01, 0x00]],
   ]);
+});
+
+test('manual book selector lists the four operational books and overrides a physical selection', async () => {
+  const html = fs.readFileSync(path.join(__dirname, '../rutinas/bookTestImposibleV2.html'), 'utf8');
+  assert.match(html, /<h2>Elección Manual<\/h2>/);
+  assert.doesNotMatch(html, /Elección Manual \(vía de escape\)/);
+
+  const { dev, elements } = await loadRoutine();
+  const state = dev.getRoutineState();
+  const selector = elements.get('manualBookSelection');
+  assert.deepEqual(
+    selector.children.map(option => [option.value, option.textContent]),
+    [
+      ['01', '01 — El sobrino del mago'],
+      ['02', '02 — El león, la bruja y el armario'],
+      ['03', '03 — El caballo y el muchacho'],
+      ['04', '04 — El príncipe Caspian'],
+    ]
+  );
+
+  state.currentBook = state.books.find(book => book.tag === '01');
+  selector.value = '04';
+  await dev.injectMultiAntennaSelectionFromUi();
+
+  assert.equal(state.currentBook.bookId, 'el-principe-caspian');
+  assert.deepEqual(JSON.parse(JSON.stringify(state.q5Slots)), { 2: 20, 3: 20, 4: 4, 5: 1, 6: 5 });
+  assert.equal(elements.get('resolvedPage').textContent, '44');
+  assert.equal(elements.get('resolvedLine').textContent, '6');
+
+  dev.handleBookDevicePacket({ antennaId: 1, bookCode: '01', rawValue: '01' });
+  assert.equal(state.currentBook.bookId, 'narnia-el-sobrino-del-mago');
 });
 
 test('Nueva Detección and Reiniciar detección rearm before one dual RESUME', async () => {
