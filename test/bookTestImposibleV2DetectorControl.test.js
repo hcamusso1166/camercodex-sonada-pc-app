@@ -8,9 +8,11 @@ const routineSource = fs.readFileSync(
   path.join(__dirname, '../js/rutinas/bookTestImposibleV2.js'),
   'utf8'
 );
+const booksIndex = JSON.parse(fs.readFileSync(path.join(__dirname, '../books/index.json'), 'utf8'));
 
 async function loadRoutine() {
   const writes = [];
+  const audioEvents = [];
   let initialize;
   const elements = new Map();
   const element = id => {
@@ -25,7 +27,15 @@ async function loadRoutine() {
         addEventListener() {},
         toggleAttribute() {},
         removeAttribute() {},
-        appendChild() {},
+        children: [],
+        appendChild(child) {
+          this.children.push(child);
+          if (this.value === '') this.value = child.value;
+        },
+        replaceChildren() {
+          this.children = [];
+          this.value = '';
+        },
       });
     }
     return elements.get(id);
@@ -34,14 +44,14 @@ async function loadRoutine() {
     readyState: 'loading',
     addEventListener(name, callback) { if (name === 'DOMContentLoaded') initialize = callback; },
     getElementById(id) { return element(id); },
-    createElement() { return { style: {} }; },
+    createElement() { return { style: {}, value: '', textContent: '' }; },
   };
   class ShowAudio {
     constructor() { this.status = 'idle'; this.lastPlayableQueue = []; }
-    buildDetectionBookTitleQueue() { return []; }
-    buildDetectionSlotQueue() { return []; }
-    buildDetectionPageLineQueue() { return []; }
-    enqueueAuxiliaryQueue() {}
+    buildDetectionBookTitleQueue(book) { return [`book:${book.tag}`]; }
+    buildDetectionSlotQueue(slotNumber) { return [`slot:${slotNumber}`]; }
+    buildDetectionPageLineQueue() { return ['page-line']; }
+    enqueueAuxiliaryQueue(queue) { audioEvents.push(...queue); }
     resolveReadingContext() { return {}; }
     buildResolutionBookPageLineOnceQueue() { return []; }
     buildResolutionPageLineRepeatQueue() { return []; }
@@ -89,10 +99,10 @@ async function loadRoutine() {
     RegExp,
     Promise,
     Uint8Array,
-    fetch: async () => ({ ok: true, json: async () => [] }),
+    fetch: async () => ({ ok: true, json: async () => booksIndex }),
   }, { filename: 'bookTestImposibleV2.js' });
   await initialize();
-  return { dev: window.bookTestImposibleV2Dev, writes };
+  return { dev: window.bookTestImposibleV2Dev, writes, elements, audioEvents };
 }
 
 function completeSelection(state) {
@@ -139,22 +149,143 @@ test('incomplete Siguiente Audio does not freeze or PAUSE', async () => {
   assert.deepEqual(writes, []);
 });
 
-test('injected multiantenna values converge on the same freeze and dual PAUSE', async () => {
+test('injected multiantenna values immediately converge on the same freeze and dual PAUSE', async () => {
   const { dev, writes } = await loadRoutine();
   const state = dev.getRoutineState();
   state.currentBook = { bookId: 'book-1', title: 'Book 1' };
   state.phase = 'DETECCION';
   await dev.injectMultiAntennaSelectionFromUi();
-
-  await dev.tryLockAndStartShow();
   await flushWrites();
 
+  assert.equal(state.selectionLocked, true);
+  assert.equal(state.lockedSelection.book.tag, '01');
   assert.equal(state.lockedSelection.page, 44);
   assert.equal(state.lockedSelection.line, 6);
+  assert.deepEqual(JSON.parse(JSON.stringify(state.lockedSelection.q5Slots)), { 2: 20, 3: 20, 4: 4, 5: 1, 6: 5 });
   assert.deepEqual(writes.map(([role, payload]) => [role, payload]), [
     ['bookDevice', [0x43, 0x41, 0x01, 0x00]],
     ['q5Device', [0x43, 0x41, 0x01, 0x00]],
   ]);
+});
+
+test('manual book selector lists the four operational books and overrides a physical selection', async () => {
+  const html = fs.readFileSync(path.join(__dirname, '../rutinas/bookTestImposibleV2.html'), 'utf8');
+  assert.match(html, /<h2>Elección Manual<\/h2>/);
+  assert.doesNotMatch(html, /Elección Manual \(vía de escape\)/);
+
+  const { dev, elements } = await loadRoutine();
+  const state = dev.getRoutineState();
+  const selector = elements.get('manualBookSelection');
+  assert.deepEqual(
+    selector.children.map(option => [option.value, option.textContent]),
+    [
+      ['01', '01 — El sobrino del mago'],
+      ['02', '02 — El león, la bruja y el armario'],
+      ['03', '03 — El caballo y el muchacho'],
+      ['04', '04 — El príncipe Caspian'],
+    ]
+  );
+
+  state.currentBook = state.books.find(book => book.tag === '01');
+  selector.value = '04';
+  await dev.injectMultiAntennaSelectionFromUi();
+
+  assert.equal(state.currentBook.bookId, 'el-principe-caspian');
+  assert.deepEqual(JSON.parse(JSON.stringify(state.q5Slots)), { 2: 20, 3: 20, 4: 4, 5: 1, 6: 5 });
+  assert.equal(elements.get('resolvedPage').textContent, '44');
+  assert.equal(elements.get('resolvedLine').textContent, '6');
+
+  await dev.handleBtiV2Packet({ antennaId: 1, bookCode: '01', rawValue: '01' }, 'bookDevice');
+  assert.equal(state.currentBook.bookId, 'el-principe-caspian');
+});
+
+test('manual injection always queues book audio before slot1..slot5 audio', async () => {
+  const { dev, elements, audioEvents } = await loadRoutine();
+  const selector = elements.get('manualBookSelection');
+  selector.value = '04';
+
+  dev.handleBookDevicePacket({ antennaId: 1, bookCode: '04', rawValue: '04' });
+  assert.deepEqual(audioEvents, ['book:04']);
+  audioEvents.length = 0;
+
+  await dev.injectMultiAntennaSelectionFromUi();
+
+  assert.deepEqual(audioEvents.slice(0, 6), [
+    'book:04',
+    'slot:1',
+    'slot:2',
+    'slot:3',
+    'slot:4',
+    'slot:5',
+  ]);
+});
+
+test('manual lock rejects physical book and Q5 changes, then antenna 8 advances without another PAUSE', async () => {
+  const { dev, writes, elements, audioEvents } = await loadRoutine();
+  const state = dev.getRoutineState();
+  elements.get('manualBookSelection').value = '04';
+  await dev.injectMultiAntennaSelectionFromUi();
+  await flushWrites();
+
+  const lockedSelection = state.lockedSelection;
+  const lockedSlots = JSON.parse(JSON.stringify(state.q5Slots));
+  const visibleValues = ['resolvedBookTitle', 'resolvedBookCode', 'resolvedPage', 'resolvedLine']
+    .map(id => elements.get(id).textContent);
+  const audioCount = audioEvents.length;
+  assert.equal(state.phase, 'WAITING_GATE_FOR_RESOLUTION_REPEAT');
+  assert.equal(writes.length, 2);
+
+  await dev.handleBtiV2Packet({ antennaId: 2, value: 1, rawValue: '01' }, 'q5Device');
+  await dev.handleBtiV2Packet({ antennaId: 1, bookCode: '01', rawValue: '01' }, 'bookDevice');
+
+  assert.equal(state.currentBook.bookId, 'el-principe-caspian');
+  assert.equal(state.lockedSelection, lockedSelection);
+  assert.deepEqual(JSON.parse(JSON.stringify(state.q5Slots)), lockedSlots);
+  assert.deepEqual(
+    ['resolvedBookTitle', 'resolvedBookCode', 'resolvedPage', 'resolvedLine'].map(id => elements.get(id).textContent),
+    visibleValues
+  );
+  assert.equal(audioEvents.length, audioCount);
+
+  state.lastAntenna8GateAt = -2000;
+  await dev.handleBtiV2Packet({ antennaId: 8, value: 2, rawValue: '02' }, 'q5Device');
+  await flushWrites();
+
+  assert.equal(state.phase, 'WAITING_GATE_FOR_READING_TARGET_1');
+  assert.equal(writes.length, 2);
+});
+
+test('manual injection cannot mutate locked state, resolved UI, slots, or audio', async () => {
+  const { dev, elements, audioEvents } = await loadRoutine();
+  const state = dev.getRoutineState();
+  const lockedBook = state.books.find(book => book.tag === '01');
+  const lockedSelection = { book: lockedBook, page: 6, line: 9 };
+  const lockedSlots = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5 };
+  state.currentBook = lockedBook;
+  state.lockedSelection = lockedSelection;
+  state.selectionLocked = true;
+  state.q5Slots = { ...lockedSlots };
+  elements.get('resolvedBookTitle').textContent = lockedBook.title;
+  elements.get('resolvedBookCode').textContent = '01';
+  elements.get('resolvedPage').textContent = '6';
+  elements.get('resolvedLine').textContent = '9';
+
+  elements.get('manualBookSelection').value = '04';
+  [9, 8, 7, 6, 5].forEach((value, index) => {
+    elements.get(`multiAntennaSlot${index + 1}`).value = String(value);
+  });
+  await dev.injectMultiAntennaSelectionFromUi();
+
+  assert.equal(state.currentBook, lockedBook);
+  assert.equal(state.lockedSelection, lockedSelection);
+  assert.deepEqual(JSON.parse(JSON.stringify(state.q5Slots)), lockedSlots);
+  assert.deepEqual([
+    elements.get('resolvedBookTitle').textContent,
+    elements.get('resolvedBookCode').textContent,
+    elements.get('resolvedPage').textContent,
+    elements.get('resolvedLine').textContent,
+  ], [lockedBook.title, '01', '6', '9']);
+  assert.deepEqual(audioEvents, []);
 });
 
 test('Nueva Detección and Reiniciar detección rearm before one dual RESUME', async () => {
