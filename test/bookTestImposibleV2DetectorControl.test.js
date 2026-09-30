@@ -219,6 +219,39 @@ test('manual injection always queues book audio before slot1..slot5 audio', asyn
   ]);
 });
 
+test('manual injection cannot mutate locked state, resolved UI, slots, or audio', async () => {
+  const { dev, elements, audioEvents } = await loadRoutine();
+  const state = dev.getRoutineState();
+  const lockedBook = state.books.find(book => book.tag === '01');
+  const lockedSelection = { book: lockedBook, page: 6, line: 9 };
+  const lockedSlots = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5 };
+  state.currentBook = lockedBook;
+  state.lockedSelection = lockedSelection;
+  state.selectionLocked = true;
+  state.q5Slots = { ...lockedSlots };
+  elements.get('resolvedBookTitle').textContent = lockedBook.title;
+  elements.get('resolvedBookCode').textContent = '01';
+  elements.get('resolvedPage').textContent = '6';
+  elements.get('resolvedLine').textContent = '9';
+
+  elements.get('manualBookSelection').value = '04';
+  [9, 8, 7, 6, 5].forEach((value, index) => {
+    elements.get(`multiAntennaSlot${index + 1}`).value = String(value);
+  });
+  await dev.injectMultiAntennaSelectionFromUi();
+
+  assert.equal(state.currentBook, lockedBook);
+  assert.equal(state.lockedSelection, lockedSelection);
+  assert.deepEqual(JSON.parse(JSON.stringify(state.q5Slots)), lockedSlots);
+  assert.deepEqual([
+    elements.get('resolvedBookTitle').textContent,
+    elements.get('resolvedBookCode').textContent,
+    elements.get('resolvedPage').textContent,
+    elements.get('resolvedLine').textContent,
+  ], [lockedBook.title, '01', '6', '9']);
+  assert.deepEqual(audioEvents, []);
+});
+
 test('Nueva Detección and Reiniciar detección rearm before one dual RESUME', async () => {
   for (const control of ['Nueva Detección', 'Reiniciar detección']) {
     const { dev, writes } = await loadRoutine();

@@ -216,6 +216,11 @@ function validateMultiAntennaSlots(slots) {
 }
 
 async function injectMultiAntennaSelectionFromUi() {
+  if (routineState.selectionLocked) {
+    logInfo("[MANUAL] Inyección manual ignorada: selección ya fijada.", "MANUAL");
+    return;
+  }
+
   const selectedBookTag = String(ui.manualBookSelection?.value || "").trim();
   const selectedBook = routineState.books.find(book => String(book.tag || "").padStart(2, "0") === selectedBookTag);
   if (!selectedBook) {
